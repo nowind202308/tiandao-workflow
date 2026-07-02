@@ -339,6 +339,7 @@
 
     /**
      * 尋找並指定特定資料夾（tiandao-data）的雲端實體 ID 位置
+     * 具備防擋自動初始化建立機制
      */
     async function locateTargetFolder() {
         try {
@@ -347,14 +348,26 @@
                 fields: 'files(id)'
             });
             const folders = response.result.files;
+            
             if (folders && folders.length > 0) {
                 state.targetFolderId = folders[0].id; // 精準指定該特定資料夾位置
                 console.log('環境特定資料夾鎖定成功，ID:', state.targetFolderId);
             } else {
-                alert(`在您的雲端硬碟中找不到名為「${TDF_CONFIG.FOLDER_NAME}」的特定資料夾，請在硬碟中先手動建立此資料夾！`);
+                // 💡 如果因為 Scopes 限制看不到手動建立的資料夾，就由程式碼直接在雲端自動建立一個
+                console.log('未偵測到相容資料夾，啟動自動初始化建立...');
+                const createResponse = await gapi.client.drive.files.create({
+                    resource: {
+                        name: TDF_CONFIG.FOLDER_NAME,
+                        mimeType: 'application/vnd.google-apps.folder'
+                    },
+                    fields: 'id'
+                });
+                state.targetFolderId = createResponse.result.id;
+                alert(`天道流專屬資料夾「${TDF_CONFIG.FOLDER_NAME}」已在您的雲端硬碟根目錄自動初始化建立成功！`);
             }
         } catch (err) {
             console.error('導航鎖定特定資料夾失敗', err);
+            alert('定位資料夾時發生錯誤：' + err.message);
         }
     }
 
