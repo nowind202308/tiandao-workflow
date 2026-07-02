@@ -246,7 +246,6 @@
 
 <script>
     const TDF_CONFIG = {
-        // 🚨 核心步驟：請將下方這一行替換成您在 Google Cloud 複製的真實 Client ID
         CLIENT_ID: '113481234677-vhtkocf6nsp7pm47figsdgm6vsdqlrea.apps.googleusercontent.com', 
         SCOPES: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
         DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
@@ -278,7 +277,6 @@
         try {
             gapi.load('client', async () => {
                 try {
-                    // 🎯 重構：移除與 oauth2 衝突的 apiKey 參數，僅初始化偵測文件
                     await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
                     state.gapiInited = true;
                     
@@ -298,6 +296,7 @@
             state.tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: TDF_CONFIG.CLIENT_ID,
                 scope: TDF_CONFIG.SCOPES,
+                prompt: '', // 🌟 保持留空，避免覆寫引發強制彈窗地雷
                 callback: (resp) => handleAuthCallback(resp)
             });
             state.gisInited = true;
@@ -315,7 +314,37 @@
             authBtn.classList.replace('bg-surface-container-highest', 'bg-primary-container');
             authBtn.classList.replace('text-on-surface-variant', 'text-on-primary-fixed');
             authBtnText.innerText = '登入天道流';
+
+            // 🌟 核心工程修正：初始化完成後，立即嘗試自 localStorage 讀取快取靜默登入
+            tryAutoLogin();
         }
+    }
+
+    // 🌟 新增：環境繼承快取自動登入管線
+    async function tryAutoLogin() {
+        const savedTokenStr = localStorage.getItem('gapi_token');
+        const savedTokenTime = localStorage.getItem('gapi_token_time');
+        
+        if (savedTokenStr && savedTokenTime) {
+            const tokenResponse = JSON.parse(savedTokenStr);
+            const elapsed = Date.now() - parseInt(savedTokenTime);
+            
+            // 只要在 50 分鐘的黃金安全期內，直接在背景對齊狀態，不跳出任何彈窗
+            if (elapsed < 50 * 60 * 1000) {
+                gapi.client.setToken(tokenResponse);
+                console.log("🚀 天道快取管線：成功由記憶體繼承 Token，實現 0 彈窗靜默登入。");
+                
+                // 變更 UI 為已授權狀態
+                document.getElementById('auth-btn-text').innerText = '天道核心已授權(自動)';
+                document.getElementById('auth-btn').classList.replace('bg-primary-container', 'bg-surface-container-highest');
+                document.getElementById('auth-btn').classList.replace('text-on-primary-fixed', 'text-on-surface-variant');
+                
+                await locateTargetFolder();
+                await fetchSystemConfig();
+                return;
+            }
+        }
+        console.log("未檢測到有效的天道 Token 快取，等待使用者手動初始化授權。");
     }
 
     async function handleAuthCallback(resp) {
@@ -329,10 +358,15 @@
             return;
         }
 
+        // 🌟 新增：登入成功時，實體寫入快取
+        localStorage.setItem('gapi_token', JSON.stringify(resp));
+        localStorage.setItem('gapi_token_time', Date.now().toString());
+
         document.getElementById('auth-btn-text').innerText = '核心校對中...';
         await locateTargetFolder();
         document.getElementById('auth-btn-text').innerText = '天道核心已授權';
         document.getElementById('auth-btn').classList.replace('bg-primary-container', 'bg-surface-container-highest');
+        document.getElementById('auth-btn').classList.replace('text-on-primary-fixed', 'text-on-surface-variant');
         
         await fetchSystemConfig();
     }
@@ -377,10 +411,12 @@
         } catch (err) { return null; }
     }
 
+    // 🌟 修正：移除了容易誘發重複詢問的 prompt 參數，改用安全靜默提示
     document.getElementById('auth-btn').addEventListener('click', () => {
         if (!state.tokenClient) return alert('驗證組件尚未就緒');
         try {
-            state.tokenClient.requestAccessToken({ prompt: gapi.client.getToken() === null ? 'consent' : '' });
+            // 提供 hint 讓 Google 智慧對齊指定帳號，並移除 consent 阻斷
+            state.tokenClient.requestAccessToken({ hint: 'nowind.leo@gmail.com' });
         } catch (e) {
             alert('喚醒 Google 登入視窗失敗。');
         }
@@ -422,10 +458,6 @@
         }
     }
 
-    /**
-     * 🎯 核心重構：利用 Multipart/Related 機制打通大綱寫入管線
-     * 徹底修復 Multipart upload required (400) 錯誤
-     */
     async function saveOutline() {
         const tokenObj = gapi.client.getToken();
         if (!tokenObj || !tokenObj.access_token) return alert('請先完成授權登入');
@@ -441,7 +473,6 @@
             const fileId = await findFileByName(TDF_CONFIG.OUTLINE_FILENAME);
             const accessToken = tokenObj.access_token;
             
-            // 建立 Multipart 傳輸邊界字串
             const boundary = '===TIANDAO_MULTIPART_BOUNDARY===';
             const delimiter = `\r\n--${boundary}\r\n`;
             const closeDelimiter = `\r\n--${boundary}--`;
@@ -449,83 +480,10 @@
             let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
             let method = 'POST';
             
-            // 封裝中繼資料 (Metadata)
             const metadata = {
                 name: TDF_CONFIG.OUTLINE_FILENAME,
                 mimeType: 'text/plain'
             };
             
             if (fileId) {
-                // 如果檔案存在，切換為覆寫更新（Update）管線
-                url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`;
-                method = 'PATCH';
-            } else {
-                // 如果是新檔案，指定父資料夾
-                metadata.parents = [state.targetFolderId];
-            }
-
-            // 實體多部分表單封裝
-            const multipartRequestBody =
-                delimiter +
-                'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-                JSON.stringify(metadata) +
-                delimiter +
-                'Content-Type: text/plain; charset=UTF-8\r\n\r\n' +
-                content +
-                closeDelimiter;
-
-            // 透過標準 fetch 發送，徹底隔離 api_key，僅帶入 Bearer 憑證
-            const response = await fetch(url, {
-                method: method,
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': `multipart/related; boundary=${boundary}`
-                },
-                body: multipartRequestBody
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error ? errorData.error.message : '傳輸崩潰');
-            }
-
-            alert('天道流資產已成功實體同步寫入雲端硬碟檔案中！');
-        } catch (e) { 
-            console.error(e);
-            alert('寫入特定資料夾失敗：' + e.message); 
-        } finally {
-            saveBtn.innerText = '儲存至硬碟';
-            saveBtn.disabled = false;
-        }
-    }
-
-    // --- UI 控制與觸控反饋事件監聽 ---
-    document.getElementById('status-toggle').addEventListener('click', () => {
-        document.getElementById('status-panel').classList.toggle('hidden');
-    });
-    document.getElementById('close-status').addEventListener('click', () => {
-        document.getElementById('status-panel').classList.add('hidden');
-    });
-
-    document.getElementById('bio-nav-btn').addEventListener('click', () => {
-        state.physiologicalStates.blindness = !state.physiologicalStates.blindness;
-        alert(state.physiologicalStates.blindness ? "生理狀態機：[右眼生理失明] 已啟動阻斷" : "生理狀態機：全感官完全恢復");
-        runAuditEngine();
-    });
-
-    document.querySelectorAll('.action-card').forEach(card => {
-        card.addEventListener('click', function() {
-            document.querySelectorAll('.action-card').forEach(c => c.classList.remove('ring-2', 'ring-primary-container', 'bg-surface-container-highest'));
-            this.classList.add('ring-2', 'ring-primary-container', 'bg-surface-container-highest');
-            state.selectedAction = this.getAttribute('data-id');
-            runAuditEngine();
-        });
-    });
-
-    document.getElementById('prompt-editor').addEventListener('input', runAuditEngine);
-    document.getElementById('save-btn').addEventListener('click', saveOutline);
-    
-    window.onload = () => runAuditEngine();
-</script>
-</body>
-</html>
+                url = `https://
