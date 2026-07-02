@@ -1,210 +1,268 @@
 <!DOCTYPE html>
-<html class="dark" lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-    <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
-    <title>...</title>
-    
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-    
-    <script async defer src="https://accounts.google.com/gsi/client"></script>
-    <script async defer src="https://apis.google.com/js/api.js"></script>
-    
-    <style>
-        .glass-panel { background: rgba(21, 29, 30, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(132, 148, 149, 0.1); }
-        .scanline { width: 100%; height: 2px; background: rgba(0, 219, 231, 0.05); position: absolute; top: 0; animation: scan 8s linear infinite; z-index: 10; pointer-events: none; }
-        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
-        .cyan-glow { box-shadow: 0 0 15px rgba(0, 219, 231, 0.15); }
-        .active-nav-item { color: #00f2ff; border-top: 2px solid #00f2ff; }
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-track { background: #080f10; }
-        ::-webkit-scrollbar-thumb { background: #3a494b; border-radius: 2px; }
-        
-        #main-app-content { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
-        #main-app-content.unlocked { opacity: 1; pointer-events: auto; }
-        .secure-mask { position: fixed; inset: 0; background: #080f10; z-index: 40; display: flex; align-items: center; justify-content: center; color: #00dbe7; font-family: 'JetBrains Mono', monospace; font-size: 12px; transition: opacity 0.5s ease; }
-        .secure-mask.hidden-mask { opacity: 0; pointer-events: none; }
-    </style>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+  <title>天道流：大綱中央控制台 TDC V5.0.4</title>
+  
+  <!-- Tailwind CSS v3 CDN -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  
+  <!-- Google Fonts for Monospace and Aesthetic -->
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+  
+  <!-- Google API Scripts -->
+  <script async defer src="https://accounts.google.com/gsi/client"></script>
+  <script async defer src="https://apis.google.com/js/api.js"></script>
 
-    <script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: { extend: { colors: {
-                "on-primary-fixed": "#002022", "surface-container-low": "#151d1e", "inverse-on-surface": "#2a3232",
-                "on-primary-container": "#006a71", "surface-tint": "#00dbe7", "secondary-fixed": "#e5e2e1",
-                "primary-fixed": "#74f5ff", "surface-container-lowest": "#080f10", "on-secondary-container": "#bab8b7",
-                "surface": "#0d1515", "error-container": "#93000a", "surface-container-highest": "#2e3637",
-                "surface-dim": "#0d1515", "inverse-primary": "#00696f", "on-secondary": "#313030",
-                "primary-fixed-dim": "#00dbe7", "on-tertiary-fixed": "#291800", "on-surface-variant": "#b9cacb",
-                "on-tertiary": "#452b00", "tertiary-container": "#ffd49d", "on-surface": "#dce4e4",
-                "on-error-container": "#ffdad6", "tertiary": "#fff6ef", "surface-container": "#192122",
-                "background": "#0d1515", "on-primary": "#00363a", "on-primary-fixed-variant": "#004f54",
-                "on-error": "#690005", "error": "#ffb4ab", "on-secondary-fixed": "#1c1b1b",
-                "on-tertiary-container": "#845600", "surface-container-high": "#232b2c", "secondary": "#c9c6c5",
-                "on-tertiary-fixed-variant": "#633f00", "secondary-container": "#4a4949", "primary": "#e1fdff",
-                "tertiary-fixed": "#ffddb4", "on-secondary-fixed-variant": "#474646", "tertiary-fixed-dim": "#ffb952",
-                "on-background": "#dce4e4", "surface-bright": "#333b3b", "primary-container": "#00f2ff",
-                "secondary-fixed-dim": "#c9c6c5", "inverse-surface": "#dce4e4", "outline-variant": "#3a494b",
-                "outline": "#849495", "surface-variant": "#2e3637"
-            }, spacing: { "gutter": "16px" }, fontFamily: { "body-lg": ["Inter"], "label-caps": ["JetBrains Mono"], "data-md": ["JetBrains Mono"] } } }
-        };
-    </script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            obsidian: '#0d1515',
+            neonCyan: '#00f2ff',
+            neonCyanDim: 'rgba(0, 242, 255, 0.1)',
+            panelBorder: '#2a3a3a',
+            accentRed: '#ff4d4d',
+            accentOrange: '#ff9f43',
+            surface: '#141e1e'
+          },
+          fontFamily: {
+            sans: ['Noto Sans TC', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style data-purpose="global-styles">
+    body {
+      background-color: #0d1515;
+      color: #e2e8f0;
+      font-family: 'Noto Sans TC', sans-serif;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    ::-webkit-scrollbar { width: 6px; height: 4px; }
+    ::-webkit-scrollbar-track { background: #0d1515; }
+    ::-webkit-scrollbar-thumb { background: #2a3a3a; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #00f2ff; }
+
+    .border-glow { border: 1px solid #2a3a3a; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
+    .border-glow:focus-within { border-color: #00f2ff; box-shadow: 0 0 8px rgba(0, 242, 255, 0.2); }
+
+    input, textarea, select {
+      background-color: #1a2626 !important;
+      border: 1px solid #2a3a3a !important;
+      color: #00f2ff !important;
+      font-size: 16px !important; 
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none !important;
+      border-color: #00f2ff !important;
+      ring: 0 !important;
+    }
+
+    .neon-text { color: #00f2ff; text-shadow: 0 0 5px rgba(0, 242, 255, 0.5); }
+
+    @media (max-width: 640px) {
+      .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      .hide-scrollbar::-webkit-scrollbar { display: none; }
+    }
+
+    /* 安全遮罩樣式 */
+    .secure-mask {
+      position: fixed; inset: 0; background: #0d1515; z-index: 9999; 
+      display: flex; align-items: center; justify-content: center; 
+      color: #00f2ff; font-family: 'JetBrains Mono', monospace; font-size: 14px; 
+      transition: opacity 0.5s ease;
+    }
+    .secure-mask.hidden-mask { opacity: 0; pointer-events: none; }
+    #main-app-content { opacity: 0; transition: opacity 0.5s ease; }
+    #main-app-content.unlocked { opacity: 1; }
+  </style>
 </head>
-<body class="bg-background text-on-surface font-body-lg overflow-hidden h-screen flex flex-col">
+<body class="min-h-screen flex flex-col pb-20">
 
+<!-- 安全登入遮罩 -->
 <div id="secure-mask" class="secure-mask">SYSTEM_LOCKED :: WAITING_FOR_AUTH</div>
 
-<header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
-    <div class="flex items-center gap-2">
-        <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none" data-i18n="app_title">---</h1>
+<div id="main-app-content" class="flex-1 flex flex-col h-full">
+  <!-- BEGIN: MainHeader -->
+  <header class="h-auto py-3 border-b border-panelBorder bg-surface flex flex-col items-center px-4 shrink-0 sticky top-0 z-50">
+    <div class="flex items-center gap-3 mb-3 w-full">
+      <div class="w-3 h-3 rounded-full bg-neonCyan shadow-[0_0_10px_#00f2ff]"></div>
+      <h1 class="text-sm font-bold tracking-wider neon-text font-mono truncate" data-i18n="app_title">TDC V5.0.4</h1>
+      <div class="ml-auto text-[10px] text-gray-500 font-mono">STATUS: ONLINE</div>
     </div>
-    <div class="flex items-center gap-3">
-        <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
-            <span class="material-symbols-outlined text-[16px]">account_circle</span>
-            <span id="auth-btn-text" data-i18n="login_btn">---</span>
-        </button>
-        <button class="text-on-surface-variant hover:bg-surface-container-high p-1.5 rounded transition-colors" id="status-toggle">
-            <span class="material-symbols-outlined text-[20px]">analytics</span>
-        </button>
+    <div class="grid grid-cols-2 gap-2 w-full">
+      <button id="auth-btn" class="bg-[#2d4d4d] hover:bg-[#3d6d6d] text-white px-2 py-2.5 rounded-md text-xs flex items-center justify-center gap-2 border border-neonCyan/30 transition-all active:scale-95">
+        <span>🚀</span> <span id="auth-btn-text" data-i18n="login_btn">授權登入</span>
+      </button>
+      <button class="bg-surface hover:bg-[#1a2b2b] text-white px-2 py-2.5 rounded-md text-xs flex items-center justify-center gap-2 border border-panelBorder transition-all active:scale-95" onclick="fetchSystemConfig()">
+        <span>🔄</span> 重新載入
+      </button>
     </div>
-</header>
+  </header>
+  <!-- END: MainHeader -->
 
-<div id="main-app-content" class="flex-1 mt-14 mb-16 overflow-y-auto relative flex flex-col hide-scrollbar">
-    <div class="scanline"></div>
-    <div class="px-gutter py-4 bg-surface-container-low border-b border-outline-variant">
-        <div class="flex justify-between items-end">
-            <div>
-                <h2 class="font-label-caps text-[9px] text-on-surface-variant uppercase mb-1" data-i18n="module_label">---</h2>
-                <div class="font-label-caps text-sm font-bold text-primary-fixed-dim leading-tight" data-i18n="project_title">---</div>
-            </div>
-            <div class="text-right">
-                <div class="font-data-md text-[10px] text-on-tertiary-container opacity-70" data-i18n="version_info">---</div>
-                <div class="font-data-md text-[10px] text-primary-fixed-dim" data-i18n="env_info">---</div>
-            </div>
+  <main class="flex-1 flex flex-col overflow-y-auto hide-scrollbar">
+    <!-- BEGIN: EditorArea -->
+    <div class="flex-1 p-4 space-y-6 bg-obsidian">
+      
+      <!-- Section: Global Info -->
+      <div class="border border-panelBorder p-4 pt-6 rounded-lg bg-surface/50 relative">
+        <div class="absolute -top-3 left-4 bg-obsidian px-2 text-[10px] font-bold text-gray-400 flex items-center gap-2 uppercase tracking-widest">
+          <span class="text-neonCyan">📌</span> 基礎資訊與全局錨點
         </div>
-    </div>
+        <div class="grid grid-cols-2 gap-3 mb-4 mt-2">
+          <div class="space-y-1">
+            <label class="text-[10px] text-gray-400">章節編號:</label>
+            <input class="w-full h-11 rounded px-3 font-mono text-center" type="text" value="001"/>
+          </div>
+          <div class="space-y-1">
+            <label class="text-[10px] text-gray-400">版次:</label>
+            <input class="w-full h-11 rounded px-3 font-mono text-center" type="text" value="V1.0"/>
+          </div>
+        </div>
+        <div class="space-y-1">
+          <label class="text-[10px] text-gray-400">本章核心事件:</label>
+          <textarea class="w-full h-28 rounded p-3 resize-none font-sans leading-relaxed" placeholder="請輸入本章節的核心衝突與關鍵轉折..."></textarea>
+        </div>
+      </div>
 
-    <main class="flex-1 bg-surface-dim flex flex-col">
-        <div class="p-gutter grid grid-cols-1 gap-4 bg-surface-container-lowest/30 border-b border-outline-variant">
-            <div class="space-y-1">
-                <label class="font-label-caps text-[10px] text-on-surface-variant" data-i18n="char_label">---</label>
-                <div class="relative">
-                    <select class="w-full bg-surface-container-high border border-outline text-on-surface px-3 py-2.5 rounded-sm appearance-none font-data-md text-sm" id="char-select"></select>
-                    <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
-                </div>
+      <!-- Section: Flow Selector -->
+      <div class="flex overflow-x-auto hide-scrollbar gap-1 border-b border-panelBorder">
+        <button class="flex-none px-6 py-3 rounded-t-lg bg-surface border-t border-l border-r border-neonCyan text-neonCyan font-bold text-sm whitespace-nowrap">【 起 】</button>
+        <button class="flex-none px-6 py-3 rounded-t-lg bg-surface/20 text-gray-500 hover:text-gray-300 text-sm whitespace-nowrap">【 承 】</button>
+        <button class="flex-none px-6 py-3 rounded-t-lg bg-surface/20 text-gray-500 hover:text-gray-300 text-sm whitespace-nowrap">【 轉 】</button>
+        <button class="flex-none px-6 py-3 rounded-t-lg bg-surface/20 text-gray-500 hover:text-gray-300 text-sm whitespace-nowrap">【 合 】</button>
+      </div>
+
+      <!-- Section: Dynamic Scene Settings -->
+      <div class="border-x border-b border-panelBorder p-4 rounded-b-lg bg-surface/10 space-y-6">
+        
+        <!-- Global Scene Control -->
+        <div class="border border-panelBorder/50 rounded p-4 pt-6 relative bg-surface/40">
+          <div class="absolute -top-3 left-4 bg-obsidian px-2 text-[10px] text-gray-400 flex items-center gap-1 uppercase tracking-widest">
+            <span class="text-blue-400">🌍</span> 全局段落設置
+          </div>
+          <div class="space-y-4">
+            <div class="flex flex-col gap-2">
+              <label class="text-[10px] text-gray-400 uppercase">全局場景 (Scene):</label>
+              <div class="flex gap-2">
+                <select id="scene-select" class="rounded h-11 px-3 flex-1">
+                  <option>(載入中...)</option>
+                </select>
+                <button class="w-11 h-11 flex items-center justify-center bg-surface border border-panelBorder rounded text-neonCyan active:scale-95">📝</button>
+              </div>
             </div>
             <div class="space-y-1">
-                <label class="font-label-caps text-[10px] text-on-surface-variant" data-i18n="scene_label">---</label>
-                <div class="relative">
-                    <select class="w-full bg-surface-container-high border border-outline text-on-surface px-3 py-2.5 rounded-sm appearance-none font-data-md text-sm" id="scene-select"></select>
-                    <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
-                </div>
+              <label class="text-[10px] text-gray-400 uppercase">動作/劇情描述 (Prompt Editor):</label>
+              <textarea id="prompt-editor" class="w-full h-32 rounded p-3 text-sm leading-relaxed" placeholder="描述當前段落的具體環境氛圍與背景動作...等待資料同步..."></textarea>
             </div>
+          </div>
         </div>
 
-        <div class="p-gutter space-y-4">
-            <h3 class="font-label-caps text-[10px] text-on-surface-variant border-l-2 border-primary-container pl-2" data-i18n="action_label">---</h3>
-            <div class="grid grid-cols-1 gap-3" id="action-list"></div>
+        <!-- Character Details -->
+        <div class="border border-panelBorder/50 rounded p-4 pt-6 relative bg-surface/40">
+          <div class="absolute -top-3 left-4 bg-obsidian px-2 text-[10px] text-gray-400 flex items-center gap-1 uppercase tracking-widest">
+            <span class="text-purple-400">👥</span> 出場人物
+          </div>
+          <div class="space-y-4">
             
-            <div class="hidden mt-2 border-2 border-error-container bg-error-container/5 p-4 rounded-sm relative" id="audit-alert">
-                <div class="flex justify-between items-start mb-3">
-                    <div class="flex items-center gap-3">
-                        <div class="bg-error-container/20 p-2 rounded">
-                            <span class="material-symbols-outlined text-error text-[24px]">warning</span>
-                        </div>
-                        <div>
-                            <div class="font-data-md text-error font-bold" id="audit-action-target">---</div>
-                            <div class="font-label-caps text-[8px] text-error/60 uppercase">Warning State</div>
-                        </div>
+            <div class="border border-panelBorder rounded overflow-hidden">
+              <div class="bg-surface p-3 flex items-center justify-between border-b border-panelBorder">
+                <div class="flex items-center gap-2 w-full">
+                  <input checked class="w-5 h-5 rounded border-panelBorder bg-obsidian text-neonCyan focus:ring-neonCyan" type="checkbox"/>
+                  <select id="char-select" class="flex-1 bg-transparent border-none text-sm font-bold text-gray-200 focus:ring-0 p-0 pl-1">
+                    <option>(載入中...)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="p-3 bg-surface/20 space-y-4">
+                
+                <!-- Action Row -->
+                <div class="space-y-2">
+                  <label class="text-[10px] text-gray-400 uppercase">行為/動作 (Action Module):</label>
+                  <div class="flex gap-2">
+                    <select id="action-select" class="rounded h-10 px-2 text-xs flex-1">
+                      <option>(載入中...)</option>
+                    </select>
+                    <button id="inject-btn" class="w-auto px-3 font-bold h-10 flex items-center justify-center border border-neonCyan text-neonCyan rounded text-xs active:scale-95 bg-neonCyanDim transition-colors">
+                      ▶️ 注入指令
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 隱藏的審核警示區域 -->
+                <div id="audit-alert" class="hidden mt-2 border-2 border-accentRed bg-accentRed/10 p-3 rounded-sm relative">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="text-accentRed text-lg">⚠️</span>
+                    <div class="font-mono text-accentRed font-bold text-xs" id="audit-action-target">---</div>
+                  </div>
+                  <div class="text-[11px] font-mono leading-relaxed text-red-200">
+                    <span class="font-bold underline">審核警示:</span> BLOCKED BY: [<span id="audit-reason">---</span>]
+                  </div>
+                </div>
+
+                <!-- Constraints -->
+                <div class="space-y-3 border-l border-panelBorder/50 pl-3 pt-2">
+                  <div class="space-y-1">
+                    <div class="flex items-center gap-1">
+                      <span class="text-red-500 text-[10px]">●</span>
+                      <span class="text-gray-400 text-[10px] uppercase">必須執行 (Positive)</span>
                     </div>
+                    <input class="w-full h-10 rounded px-3 text-xs" placeholder="強制執行動作或特徵" type="text"/>
+                  </div>
+                  <div class="space-y-1">
+                    <div class="flex items-center gap-1">
+                      <span class="text-gray-500 text-[10px]">●</span>
+                      <span class="text-gray-400 text-[10px] uppercase">禁止執行 (Negative)</span>
+                    </div>
+                    <input class="w-full h-10 rounded px-3 text-xs" placeholder="禁止執行行為" type="text"/>
+                  </div>
                 </div>
-                <div class="p-3 bg-error-container text-[12px] font-data-md leading-relaxed text-on-error-container rounded-sm mb-2">
-                    <span class="font-bold underline" data-i18n="audit_alert_title">---</span><br/>
-                    BLOCKED BY: [<span id="audit-reason">---</span>]
-                </div>
+              </div>
             </div>
+          </div>
         </div>
 
-        <div class="mt-4 border-t border-outline-variant bg-surface-container-lowest flex flex-col">
-            <div class="flex items-center justify-between px-gutter py-3 bg-surface-container-low border-b border-outline-variant">
-                <span class="font-label-caps text-[10px] text-on-surface-variant flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[16px]">edit_note</span>
-                    <span data-i18n="prompt_label">---</span>
-                </span>
-                <span class="font-data-md text-[10px] text-outline">UTF-8</span>
-            </div>
-            <textarea class="min-h-[180px] max-h-[300px] p-gutter font-data-md text-sm text-on-surface selection:bg-primary-container/30 bg-black/20 border-none focus:ring-0 resize-none" id="prompt-editor" placeholder="等待資料同步..."></textarea>
-            <div class="p-3 grid grid-cols-2 gap-2 border-t border-outline-variant bg-surface-container-low">
-                <button class="bg-surface-container-highest text-on-surface py-3 rounded-sm font-label-caps text-[11px] border border-outline-variant active:bg-surface-bright transition-all disabled:opacity-50" id="save-btn" data-i18n="save_btn">---</button>
-                <button id="inject-btn" class="bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-[11px] flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow">
-                    <span class="material-symbols-outlined text-[16px]">terminal</span>
-                    <span data-i18n="inject_btn">---</span>
-                </button>
-            </div>
-        </div>
+      </div>
 
-        <div class="hidden border-t border-outline-variant bg-surface-container-lowest p-gutter space-y-6" id="status-panel">
-            <div class="flex justify-between items-center">
-                <h2 class="font-label-caps text-[11px] text-tertiary uppercase" data-i18n="status_log_title">---</h2>
-                <button class="text-on-surface-variant" id="close-status"><span class="material-symbols-outlined">close</span></button>
-            </div>
-            <div class="space-y-3">
-                <h3 class="font-label-caps text-[10px] text-outline border-b border-outline-variant pb-1" data-i18n="status_chapter_states">---</h3>
-                <div class="grid grid-cols-1 gap-2">
-                    <div class="p-3 bg-surface-container-high flex justify-between items-center rounded-sm border-l-2 border-tertiary-fixed-dim">
-                        <span class="font-data-md text-sm text-on-surface" data-i18n="status_blood_loss">---</span>
-                        <span class="font-data-md text-sm text-error" id="state-blood-loss">---</span>
-                    </div>
-                    <div class="p-3 bg-surface-container-high flex justify-between items-center rounded-sm border-l-2 border-primary-container">
-                        <span class="font-data-md text-sm text-on-surface" data-i18n="status_ttl">---</span>
-                        <span class="font-data-md text-sm text-primary-fixed-dim" id="state-ttl">---</span>
-                    </div>
-                </div>
-            </div>
-            <div class="space-y-3">
-                <h3 class="font-label-caps text-[10px] text-outline border-b border-outline-variant pb-1" data-i18n="status_attr">---</h3>
-                <div class="text-[12px] font-data-md text-on-surface-variant leading-relaxed grid grid-cols-2 gap-2 bg-surface-container-low p-3 rounded">
-                    <div id="attr-pos">[POS_SYNCING]</div>
-                    <div id="attr-time">[T_SYNCING]</div>
-                </div>
-            </div>
-            <div class="grid grid-cols-1 gap-2 pb-6">
-                <button class="w-full bg-surface-container-high text-tertiary-fixed-dim font-data-md text-sm py-3 border border-outline-variant flex items-center justify-center gap-2 active:bg-surface-bright disabled:opacity-50" id="sync-btn">
-                    <span class="material-symbols-outlined text-[18px]">sync</span> <span data-i18n="sync_btn">---</span>
-                </button>
-                <button class="w-full bg-surface-container-high text-on-surface-variant font-data-md text-sm py-3 border border-outline-variant flex items-center justify-center gap-2">
-                    <span class="material-symbols-outlined text-[18px]">ios_share</span> <span data-i18n="export_btn">---</span>
-                </button>
-            </div>
+      <!-- Section: Audit Triggers -->
+      <div class="border border-panelBorder/50 p-4 rounded-lg bg-surface/20">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="text-pink-500">🧠</span>
+          <h3 class="text-xs font-bold text-pink-400 uppercase tracking-widest">強模型自我思維觸發器</h3>
         </div>
-    </main>
+        <div class="grid grid-cols-1 gap-2">
+          <button class="w-full py-3 bg-surface border border-panelBorder rounded text-left px-4 hover:border-pink-500 transition-colors text-xs text-gray-300 active:scale-95">1. 啟動自我審計</button>
+          <button class="w-full py-3 bg-surface border border-panelBorder rounded text-left px-4 hover:border-pink-500 transition-colors text-xs text-gray-300 active:scale-95">2. 啟動隱性狀態復盤</button>
+          <button class="w-full py-3 bg-surface border border-panelBorder rounded text-left px-4 hover:border-pink-500 transition-colors text-xs text-gray-300 active:scale-95">3. 啟動導演視角反思</button>
+        </div>
+      </div>
+      
+    </div>
+  </main>
 </div>
 
-<nav class="fixed bottom-0 w-full h-16 bg-surface-container border-t border-outline-variant flex items-center justify-around px-2 z-50">
-    <button class="flex flex-col items-center gap-1 active-nav-item pt-2 pb-1 px-3">
-        <span class="material-symbols-outlined text-[22px]">settings_input_component</span>
-        <span class="font-label-caps text-[9px] uppercase" data-i18n="nav_sys">---</span>
-    </button>
-    <button class="flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3">
-        <span class="material-symbols-outlined text-[22px]">person_search</span>
-        <span class="font-label-caps text-[9px] uppercase" data-i18n="nav_char">---</span>
-    </button>
-    <button class="flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3">
-        <span class="material-symbols-outlined text-[22px]">bolt</span>
-        <span class="font-label-caps text-[9px] uppercase" data-i18n="nav_act">---</span>
-    </button>
-    <button class="flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3">
-        <span class="material-symbols-outlined text-[22px]">palette</span>
-        <span class="font-label-caps text-[9px] uppercase" data-i18n="nav_env">---</span>
-    </button>
-    <button class="flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3" id="bio-nav-btn">
-        <span class="material-symbols-outlined text-[22px]">health_and_safety</span>
-        <span class="font-label-caps text-[9px] uppercase" data-i18n="nav_bio">---</span>
-    </button>
-</nav>
+<!-- Fixed Mobile Footer -->
+<footer class="fixed bottom-0 left-0 right-0 h-18 border-t border-panelBorder bg-surface/95 backdrop-blur-md flex items-center justify-around px-4 z-50 py-2 shadow-2xl">
+  <button class="flex-1 flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-neonCyan active:scale-95 transition-all">
+    <span class="text-xl">👁️</span>
+    <span class="text-[10px] font-bold uppercase">更新預覽</span>
+  </button>
+  <div class="w-px h-8 bg-panelBorder mx-2"></div>
+  <button class="flex-1 flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-accentOrange active:scale-95 transition-all" onclick="navigator.clipboard.writeText(document.getElementById('prompt-editor').value); alert('大綱已複製');">
+    <span class="text-xl">📋</span>
+    <span class="text-[10px] font-bold uppercase">複製大綱</span>
+  </button>
+</footer>
 
+<!-- TDF Core Logic Script -->
 <script>
     const TDF_CONFIG = {
         CLIENT_ID: '113481234677-vhtkocf6nsp7pm47figsdgm6vsdqlrea.apps.googleusercontent.com', 
@@ -243,7 +301,6 @@
         return null;
     }
 
-    // 只回傳實體檔案陣列 (ID與名稱)，不自動去副檔名，交由後續處理
     async function getFilesInFolder(folderId) {
         if (!folderId) return [];
         const q = `'${folderId}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false`;
@@ -251,19 +308,15 @@
         return resp.result.files;
     }
 
-    // 🌟 核心升級：深度掃描與萃取模組內容
     async function fetchCharacterModules(files) {
         return await Promise.all(files.map(async (f) => {
             try {
-                // 下載純文字內容
                 const resp = await gapi.client.drive.files.get({ fileId: f.id, alt: 'media' });
                 const text = resp.body || "";
                 
-                // 運用正則表達式，解析 "[CHAR_YEC_BASE]" 及 "NAME: 葉辰 (Ye Chen)"
                 const idMatch = text.match(/^\[(.*?)\]/m) || text.match(/\[(CHAR_[a-zA-Z0-9_]+)\]/);
                 const nameMatch = text.match(/NAME:\s*(.+)/i);
 
-                // 如果解析失敗，則優雅降級 (Fallback) 使用檔案名稱
                 const modId = idMatch ? `[${idMatch[1]}]` : `[${f.name.replace(/\.txt$/i, '')}]`;
                 const modName = nameMatch ? nameMatch[1].trim() : f.name.replace(/\.txt$/i, '');
 
@@ -280,7 +333,6 @@
         if (actionName.includes('射擊') || actionName.includes('攻擊')) return 'target';
         if (actionName.includes('掃描') || actionName.includes('偵測')) return 'search';
         if (actionName.includes('移動') || actionName.includes('撤退')) return 'directions_run';
-        if (actionName.includes('駭入') || actionName.includes('系統')) return 'terminal';
         return 'bolt';
     }
 
@@ -314,13 +366,11 @@
                 getFilesInFolder(actFolderId)
             ]);
 
-            // 執行角色內容深度讀取
             document.getElementById('secure-mask').innerText = 'EXTRACTING_MODULE_DATA...';
             const charactersExtracted = await fetchCharacterModules(charFilesRaw);
 
             if (!configData.modules) configData.modules = {};
             
-            // 寫入萃取結果
             if (charactersExtracted.length > 0) configData.modules.characters = charactersExtracted;
             
             if (sceneFilesRaw.length > 0) {
@@ -358,15 +408,15 @@
             });
         }
 
-        // 🌟 解耦渲染：畫面顯示 Name，Value 帶入 ID
+        // 渲染角色選單
         if (config?.modules?.characters && Array.isArray(config.modules.characters)) {
             document.getElementById('char-select').innerHTML = config.modules.characters.map(c => {
-                // 兼容處理：如果仍是純字串則直接顯示，如果是萃取物件則拆分
                 if (typeof c === 'string') return `<option value="${c}">${c}</option>`;
                 return `<option value="${c.id}">${c.name}</option>`;
             }).join('');
         }
         
+        // 渲染場景選單
         if (config?.modules?.scenes && Array.isArray(config.modules.scenes)) {
             document.getElementById('scene-select').innerHTML = config.modules.scenes.map(s => {
                 if (typeof s === 'string') return `<option value="${s}">${s}</option>`;
@@ -374,34 +424,21 @@
             }).join('');
         }
 
-        const actionList = document.getElementById('action-list');
-        actionList.innerHTML = '';
+        // 渲染動作下拉選單
+        const actionSelect = document.getElementById('action-select');
+        actionSelect.innerHTML = '';
         if (config?.modules?.actions && Array.isArray(config.modules.actions)) {
             config.modules.actions.forEach((act, index) => {
                 if (index === 0) state.selectedAction = act.id; 
-                
-                const card = document.createElement('div');
-                card.className = "action-card glass-panel p-4 rounded-sm transition-colors flex items-center gap-4 cursor-pointer";
-                if(index === 0) card.classList.add('ring-2', 'ring-primary-container', 'bg-surface-container-highest');
-                card.setAttribute('data-id', act.id || 'unknown');
-                card.innerHTML = `
-                    <div class="bg-surface-container-highest p-2 rounded">
-                        <span class="material-symbols-outlined text-primary-fixed-dim text-[24px]">${act.icon || 'bolt'}</span>
-                    </div>
-                    <div class="flex-1">
-                        <div class="font-data-md text-on-surface">${act.name || '未命名動作'}</div>
-                        <div class="font-label-caps text-[8px] text-outline uppercase">${act.version || 'v1.0'}</div>
-                    </div>
-                    <span class="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
-                `;
-                
-                card.addEventListener('click', function() {
-                    document.querySelectorAll('.action-card').forEach(c => c.classList.remove('ring-2', 'ring-primary-container', 'bg-surface-container-highest'));
-                    this.classList.add('ring-2', 'ring-primary-container', 'bg-surface-container-highest');
-                    state.selectedAction = this.getAttribute('data-id');
-                    runAuditEngine();
-                });
-                actionList.appendChild(card);
+                const option = document.createElement('option');
+                option.value = act.id;
+                option.text = act.name;
+                actionSelect.appendChild(option);
+            });
+            
+            actionSelect.addEventListener('change', function() {
+                state.selectedAction = this.value;
+                runAuditEngine();
             });
         }
 
@@ -434,9 +471,9 @@
         }
     }
 
-    // 🌟 注入指令行為 (Inject Command)
+    // 注入指令邏輯
     document.getElementById('inject-btn').addEventListener('click', () => {
-        const charId = document.getElementById('char-select').value; // 抓取到的會是 [CHAR_YEC_BASE]
+        const charId = document.getElementById('char-select').value; 
         const scene = document.getElementById('scene-select').value;
         const action = state.selectedAction;
         const editor = document.getElementById('prompt-editor');
@@ -444,21 +481,20 @@
         const injectStr = `\n// --- 指令注入 ---\n目標實體: ${charId}\n行為呼叫: [${action}]\n環境載入: ${scene}\n`;
         editor.value = (editor.value.trim() + injectStr).trim() + "\n";
         
-        // 視覺反饋
-        const btnText = document.querySelector('#inject-btn span[data-i18n="inject_btn"]');
-        const originalText = btnText.innerText;
-        btnText.innerText = "注入成功";
-        setTimeout(() => btnText.innerText = originalText, 1500);
+        const originalText = "▶️ 注入指令";
+        document.getElementById('inject-btn').innerText = "✅ 注入成功";
+        setTimeout(() => document.getElementById('inject-btn').innerText = originalText, 1500);
         
         runAuditEngine();
     });
 
+    // 登入事件
     document.getElementById('auth-btn').addEventListener('click', () => {
         if (!state.tokenClient) return;
         state.tokenClient.callback = async (resp) => {
             if (resp.error !== undefined) throw (resp);
             document.getElementById('auth-btn-text').innerText = 'AGENT_AUTH';
-            document.getElementById('auth-btn').classList.replace('bg-primary-container', 'bg-surface-container-highest');
+            document.getElementById('auth-btn').classList.replace('bg-[#2d4d4d]', 'bg-surface-container-highest');
             await fetchSystemConfig();
         };
         if (gapi.client.getToken() === null) {
@@ -468,19 +504,6 @@
         }
     });
 
-    const statusBtn = document.getElementById('status-toggle');
-    const closeStatusBtn = document.getElementById('close-status');
-    const statusPanel = document.getElementById('status-panel');
-    statusBtn.addEventListener('click', () => {
-        statusPanel.classList.toggle('hidden');
-        if (!statusPanel.classList.contains('hidden')) statusPanel.scrollIntoView({ behavior: 'smooth' });
-    });
-    closeStatusBtn.addEventListener('click', () => statusPanel.classList.add('hidden'));
-
-    document.getElementById('bio-nav-btn').addEventListener('click', () => {
-        state.physiologicalStates.blindness = !state.physiologicalStates.blindness;
-        runAuditEngine();
-    });
     document.getElementById('prompt-editor').addEventListener('input', runAuditEngine);
 
     window.onload = () => { gapiLoaded(); gisLoaded(); };
