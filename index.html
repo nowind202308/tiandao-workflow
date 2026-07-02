@@ -5,11 +5,9 @@
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
     <title>天道工作流 (TianDao Workflow) V2.0 - Mobile</title>
     
-    <!-- 載入前端樣式與圖示組件 -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     
-    <!-- 強化非同步載入順序：強制 Google 官方驗證與 API 核心 SDK -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js" async defer></script>
     
@@ -103,7 +101,6 @@
 </head>
 <body class="bg-background text-on-surface font-body-lg overflow-hidden h-screen flex flex-col">
 
-<!-- 控制台頂部導航列 -->
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
@@ -123,7 +120,6 @@
 <div class="flex-1 mt-14 mb-16 overflow-y-auto relative flex flex-col" id="scroll-container">
     <div class="scanline"></div>
     
-    <!-- 當前模組標題 -->
     <div class="px-gutter py-4 bg-surface-container-low border-b border-outline-variant">
         <div class="flex justify-between items-end">
             <div>
@@ -137,9 +133,7 @@
         </div>
     </div>
 
-    <!-- 工作台核心操作區 -->
     <main class="flex-1 bg-surface-dim flex flex-col">
-        <!-- 雲端驅動下拉選單 -->
         <div class="p-gutter grid grid-cols-1 gap-4 bg-surface-container-lowest/30 border-b border-outline-variant">
             <div class="space-y-1">
                 <label class="font-label-caps text-[10px] text-on-surface-variant">選定角色 (Selected Character)</label>
@@ -163,7 +157,6 @@
             </div>
         </div>
 
-        <!-- 動作行為卡片列表 -->
         <div class="p-gutter space-y-4">
             <h3 class="font-label-caps text-[10px] text-on-surface-variant border-l-2 border-primary-container pl-2">動作模組選擇 (Action Module Selection)</h3>
             <div class="grid grid-cols-1 gap-3" id="action-list">
@@ -211,7 +204,6 @@
             </div>
         </div>
 
-        <!-- 提示詞文字編輯器與寫入按鈕 -->
         <div class="mt-4 border-t border-outline-variant bg-surface-container-lowest flex flex-col">
             <textarea class="min-h-[180px] p-gutter font-data-md text-sm text-on-surface bg-black/20 border-none focus:ring-0 resize-none" id="prompt-editor" placeholder="// 輸入章節大綱...">// 章節大綱草案
 [CHAR_YEC_BASE] 進入艙室。</textarea>
@@ -221,7 +213,6 @@
             </div>
         </div>
 
-        <!-- 狀態日誌抽屜 -->
         <div class="hidden border-t border-outline-variant bg-surface-container-lowest p-gutter space-y-6" id="status-panel">
             <div class="flex justify-between items-center">
                 <h2 class="font-label-caps text-[11px] text-tertiary uppercase">狀態日誌 (Status Log)</h2>
@@ -253,7 +244,6 @@
     </button>
 </nav>
 
-<!-- 天道核心數據隔離與 Google Drive 特定資料夾讀寫腳本 -->
 <script>
     const TDF_CONFIG = {
         // 🚨 核心步驟：請將下方這一行替換成您在 Google Cloud 複製的真實 Client ID
@@ -269,6 +259,7 @@
     const state = {
         tokenClient: null,
         gapiInited: false,
+        driveLoaded: false, // 追蹤 drive 組件是否真正載入完畢
         gisInited: false,
         selectedAction: 'ACT_戰術移動',
         physiologicalStates: { blindness: true }, 
@@ -276,6 +267,7 @@
         cachedFiles: {}
     };
 
+    // 物理循環輪詢：確保 Google 官方兩大 JS 檔案下載成功後才發動初始化
     let checkScriptsInterval = setInterval(() => {
         if (typeof gapi !== 'undefined' && typeof google !== 'undefined') {
             clearInterval(checkScriptsInterval);
@@ -285,12 +277,28 @@
 
     async function initializeSystem() {
         try {
+            // 1. 載入基本客戶端
             gapi.load('client', async () => {
-                await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
-                state.gapiInited = true;
-                enableAuthButtonIfReady();
+                try {
+                    await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
+                    state.gapiInited = true;
+                    
+                    // 核心防禦：強制確認 drive 客戶端對象已經成功掛載
+                    if (gapi.client.drive) {
+                        state.driveLoaded = true;
+                        console.log("GAPI Drive 核心組件掛載成功。");
+                    } else {
+                        console.warn("基本初始化完成，但 drive 尚未就緒，等待動態載入...");
+                        await gapi.client.load('drive', 'v3');
+                        state.driveLoaded = true;
+                    }
+                    enableAuthButtonIfReady();
+                } catch (initErr) {
+                    console.error("GAPI 內部初始化失敗:", initErr);
+                }
             });
 
+            // 2. 載入 Google Identity Services (OAuth2)
             state.tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: TDF_CONFIG.CLIENT_ID,
                 scope: TDF_CONFIG.SCOPES,
@@ -304,13 +312,15 @@
     }
 
     function enableAuthButtonIfReady() {
-        if (state.gapiInited && state.gisInited) {
+        // 嚴格門檻：必須同時滿足 GIS、GAPI、以及 Drive 客戶端皆完全就緒，才允許解除按鈕鎖定
+        if (state.gapiInited && state.driveLoaded && state.gisInited) {
             const authBtn = document.getElementById('auth-btn');
             const authBtnText = document.getElementById('auth-btn-text');
             authBtn.disabled = false;
             authBtn.classList.replace('bg-surface-container-highest', 'bg-primary-container');
             authBtn.classList.replace('text-on-surface-variant', 'text-on-primary-fixed');
             authBtnText.innerText = '登入天道流';
+            console.log("天道核心驗證管道全數打通，按鈕已安全解鎖。");
         }
     }
 
@@ -319,6 +329,13 @@
             alert('Google 核心安全拒絕授權：' + resp.error);
             throw (resp);
         }
+        
+        // 雙重防禦檢查，防止非預期點擊造成的 undefined
+        if (!gapi.client.drive) {
+            alert('雲端硬碟組件仍在加載中，請稍候再試。');
+            return;
+        }
+
         document.getElementById('auth-btn-text').innerText = '核心校對中...';
         
         await locateTargetFolder();
@@ -357,6 +374,7 @@
             }
         } catch (err) {
             console.error('導航鎖定特定資料夾失敗', err);
+            alert('導航鎖定資料夾失敗: ' + err.message);
         }
     }
 
@@ -391,7 +409,7 @@
     function runAuditEngine() {
         const auditPanel = document.getElementById('audit-alert');
         const reasonSpan = document.getElementById('audit-reason');
-        const isShootingSelected = state.selectedAction === 'ACT_精準射擊';
+        const isShootingSelected = state.selectedAction === 'ACT_精裝射擊';
         
         if (isShootingSelected && state.physiologicalStates.blindness) {
             auditPanel.classList.remove('hidden');
