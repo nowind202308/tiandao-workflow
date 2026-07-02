@@ -13,37 +13,23 @@
         connect-src 'self' https://content.googleapis.com https://accounts.google.com;
     ">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'surface-container-highest': '#e6e2de',
-                        'text-on-surface-variant': '#494541',
-                        'primary-container': '#004b6e',
-                        'text-on-primary-fixed': '#ffffff'
-                    }
-                }
-            }
-        }
-    </script>
 </head>
-<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4 font-sans">
 
-    <div id="login-view" class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
-        <h1 class="text-2xl font-bold text-gray-800 mb-2 text-center">天道流稽核系統 V1.0.001</h1>
-        <p class="text-sm text-gray-500 mb-6 text-center">核心自動化運維控制台</p>
+    <div id="login-view" class="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 border border-gray-200 block">
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-2 text-center tracking-tight">天道流稽核系統</h1>
+        <p class="text-sm text-gray-500 mb-8 text-center">核心自動化運維控制台 V1.0.002</p>
         
-        <button id="auth-btn" disabled class="w-full py-4 px-6 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all duration-300 cursor-not-allowed bg-surface-container-highest text-on-surface-variant">
+        <button id="auth-btn" disabled class="w-full py-4 px-6 rounded-xl font-bold flex items-center justify-center gap-3 transition-all duration-300 cursor-not-allowed bg-gray-200 text-gray-500">
             <svg id="loading-spinner" class="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span id="auth-btn-text">載入系統中...</span>
+            <span id="auth-btn-text">系統核心初始化中...</span>
         </button>
     </div>
 
-    <div id="main-view" class="hidden w-full max-w-4xl bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
+    <div id="main-view" class="hidden w-full max-w-4xl bg-white rounded-2xl shadow-2xl p-8 border border-gray-200">
         <div class="flex justify-between items-center border-b pb-4 mb-6">
             <div>
                 <h1 class="text-2xl font-bold text-gray-800">天道流稽核控制台</h1>
@@ -52,27 +38,27 @@
                     Google Drive API 核心連線成功
                 </p>
             </div>
-            <button onclick="logoutSystem()" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded-lg transition">
+            <button onclick="logoutSystem()" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded-lg transition font-medium">
                 登出系統
             </button>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                <h3 class="font-semibold text-blue-900 mb-1">檔案掃描排程</h3>
-                <p class="text-xs text-blue-700">自動對齊雲端硬碟變更日誌</p>
+            <div class="p-5 bg-blue-50 border border-blue-100 rounded-xl">
+                <h3 class="font-bold text-blue-900 mb-1">檔案掃描排程</h3>
+                <p class="text-xs text-blue-700 leading-relaxed">自動對齊雲端硬碟變更日誌</p>
             </div>
-            <div class="p-4 bg-purple-50 border border-purple-200 rounded-xl">
-                <h3 class="font-semibold text-purple-900 mb-1">權限異常審查</h3>
-                <p class="text-xs text-purple-700">即時監控外部公開分享鏈結</p>
+            <div class="p-5 bg-purple-50 border border-purple-100 rounded-xl">
+                <h3 class="font-bold text-purple-900 mb-1">權限異常審查</h3>
+                <p class="text-xs text-purple-700 leading-relaxed">即時監控外部公開分享鏈結</p>
             </div>
-            <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                <h3 class="font-semibold text-amber-900 mb-1">天道流自動化管線</h3>
-                <p class="text-xs text-amber-700">MIS 系統日誌同步對齊</p>
+            <div class="p-5 bg-amber-50 border border-amber-100 rounded-xl">
+                <h3 class="font-bold text-amber-900 mb-1">天道流自動化管線</h3>
+                <p class="text-xs text-amber-700 leading-relaxed">MIS 系統日誌同步對齊</p>
             </div>
         </div>
 
-        <div class="bg-gray-900 text-green-400 p-4 rounded-xl font-mono text-sm h-64 overflow-y-auto shadow-inner">
+        <div class="bg-gray-900 text-green-400 p-5 rounded-xl font-mono text-sm h-72 overflow-y-auto shadow-inner border border-gray-800">
             <div class="text-gray-500">> [SYSTEM] 天道流自動化稽核管線就緒。</div>
             <div class="text-gray-500">> [SYSTEM] 等待調度指令...</div>
             <div id="console-output"></div>
@@ -100,6 +86,7 @@
 
         let isCoreInitialized = false;
 
+        // 雙軌防禦載入檢查
         window.addEventListener('DOMContentLoaded', () => {
             checkAndTriggerInit();
         });
@@ -112,6 +99,8 @@
             if (isCoreInitialized) return;
             const gapiReady = typeof gapi !== 'undefined';
             const googleReady = typeof google !== 'undefined';
+
+            console.log(`📡 元件狀態校對 -> GAPI 腳本: ${gapiReady ? 'OK' : '未到位'}, GIS 腳本: ${googleReady ? 'OK' : '未到位'}`);
 
             if (gapiReady && googleReady) {
                 isCoreInitialized = true;
@@ -127,6 +116,7 @@
         }
 
         async function initializeSystem() {
+            console.log("開始初始化天道流核心...");
             try {
                 if (typeof gapi !== 'undefined') {
                     gapi.load('client', async () => {
@@ -136,6 +126,7 @@
                             state.driveLoaded = !!gapi.client.drive;
                             enableAuthButtonIfReady();
                         } catch (initErr) {
+                            console.error("GAPI 初始化失敗:", initErr);
                             reportInitError("GAPI 初始化失敗");
                         }
                     });
@@ -152,28 +143,33 @@
                     enableAuthButtonIfReady();
                 }
             } catch (err) {
+                console.error("系統初始化崩潰:", err);
                 reportInitError("核心崩潰");
             }
         }
 
         function enableAuthButtonIfReady() {
+            console.log(`按鈕解鎖檢查哨 -> GAPI: ${state.gapiInited}, Drive: ${state.driveLoaded}, GIS: ${state.gisInited}`);
+            
             if (state.gapiInited && state.driveLoaded && state.gisInited) {
                 const authBtn = document.getElementById('auth-btn');
                 const authBtnText = document.getElementById('auth-btn-text');
                 const spinner = document.getElementById('loading-spinner');
                 
-                authBtn.disabled = false;
-                authBtn.classList.remove('cursor-not-allowed', 'bg-surface-container-highest', 'text-on-surface-variant');
-                authBtn.classList.add('cursor-pointer', 'bg-primary-container', 'text-on-primary-fixed', 'hover:opacity-90');
-                
-                if (spinner) spinner.style.display = 'none';
-                authBtnText.innerText = '登入天道流稽核系統';
+                if (authBtn) {
+                    authBtn.disabled = false;
+                    // 還原並切換為標準 Tailwind 藍色樣式，確保 100% 渲染成功
+                    authBtn.className = "w-full py-4 px-6 rounded-xl font-bold flex items-center justify-center gap-3 transition-all duration-300 cursor-pointer bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200";
+                    
+                    if (spinner) spinner.style.display = 'none';
+                    if (authBtnText) authBtnText.innerText = '登入天道流稽核系統';
 
-                authBtn.onclick = () => {
-                    if (state.tokenClient) {
-                        state.tokenClient.requestAccessToken();
-                    }
-                };
+                    authBtn.onclick = () => {
+                        if (state.tokenClient) {
+                            state.tokenClient.requestAccessToken();
+                        }
+                    };
+                }
             }
         }
 
@@ -181,17 +177,14 @@
             const authBtnText = document.getElementById('auth-btn-text');
             const authBtn = document.getElementById('auth-btn');
             const spinner = document.getElementById('loading-spinner');
+            
             if (spinner) spinner.style.display = 'none';
             if (authBtnText) authBtnText.innerText = `載入失敗 (${reason})`;
             if (authBtn) {
-                authBtn.classList.replace('bg-surface-container-highest', 'bg-red-200');
-                authBtn.classList.replace('text-on-surface-variant', 'text-red-800');
+                authBtn.className = "w-full py-4 px-6 rounded-xl font-bold flex items-center justify-center gap-3 bg-red-100 text-red-700 border border-red-200";
             }
         }
 
-        // ==========================================
-        // 🌟 核心修正：登入成功回呼，執行視圖切換與主程式啟動
-        // ==========================================
         function handleAuthCallback(response) {
             if (response.error !== undefined) {
                 console.error("授權失敗:", response);
@@ -201,36 +194,29 @@
             
             console.log("授權成功！Token 已取回。", response);
 
-            // 1. 隱藏登入介面，拉起主控制台介面
+            // 隱藏登入，展開主功能面板
             document.getElementById('login-view').classList.add('hidden');
             document.getElementById('main-view').classList.remove('hidden');
 
-            // 2. 於終端機輸出稽核連線成功的日誌
             printLog("成功取得 Google OAuth 安全認證標記 (AccessToken)。");
-            printLog("開始對齊雲端硬碟自動化稽核管線...");
-            
-            // 這裡可以正式呼叫你原本的稽核主引擎
-            // runAuditEngine(); 
+            printLog("天道流雲端硬碟自動化稽核管線開始對齊...");
         }
 
-        // 終端機日誌輔助器
         function printLog(message) {
             const consoleBox = document.getElementById('console-output');
             const time = new Date().toLocaleTimeString();
             if (consoleBox) {
-                consoleBox.innerHTML += `<div class="mt-1"><span class="text-blue-400">[${time}]</span> > ${message}</div>`;
+                consoleBox.innerHTML += `<div class="mt-2"><span class="text-blue-400">[${time}]</span> > ${message}</div>`;
+                consoleBox.scrollTop = consoleBox.scrollHeight;
             }
         }
 
-        // 系統登出重置
         function logoutSystem() {
-            // 清除 token 授權並還原視圖
             if (gapi.client) {
                 gapi.client.setToken(null);
             }
             document.getElementById('main-view').classList.add('hidden');
             document.getElementById('login-view').classList.remove('hidden');
-            printLog("管理員已安全登出系統。");
         }
     </script>
 </body>
