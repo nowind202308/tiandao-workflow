@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>天道流稽核引擎</title>
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self'; 
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://apis.google.com https://accounts.google.com; 
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
+        font-src 'self' https://fonts.gstatic.com;
+        frame-src https://accounts.google.com; 
+        connect-src 'self' https://content.googleapis.com https://accounts.google.com;
+    ">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -22,8 +30,8 @@
 </head>
 <body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
 
-    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
-        <h1 class="text-2xl font-bold text-gray-800 mb-2 text-center">天道流稽核系統V1</h1>
+    <div id="login-view" class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
+        <h1 class="text-2xl font-bold text-gray-800 mb-2 text-center">天道流稽核系統 V1.0.001</h1>
         <p class="text-sm text-gray-500 mb-6 text-center">核心自動化運維控制台</p>
         
         <button id="auth-btn" disabled class="w-full py-4 px-6 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all duration-300 cursor-not-allowed bg-surface-container-highest text-on-surface-variant">
@@ -35,18 +43,54 @@
         </button>
     </div>
 
+    <div id="main-view" class="hidden w-full max-w-4xl bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
+        <div class="flex justify-between items-center border-b pb-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">天道流稽核控制台</h1>
+                <p class="text-sm text-green-600 flex items-center gap-1 mt-1">
+                    <span class="h-2 w-2 rounded-full bg-green-500 inline-block animate-pulse"></span>
+                    Google Drive API 核心連線成功
+                </p>
+            </div>
+            <button onclick="logoutSystem()" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded-lg transition">
+                登出系統
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                <h3 class="font-semibold text-blue-900 mb-1">檔案掃描排程</h3>
+                <p class="text-xs text-blue-700">自動對齊雲端硬碟變更日誌</p>
+            </div>
+            <div class="p-4 bg-purple-50 border border-purple-200 rounded-xl">
+                <h3 class="font-semibold text-purple-900 mb-1">權限異常審查</h3>
+                <p class="text-xs text-purple-700">即時監控外部公開分享鏈結</p>
+            </div>
+            <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <h3 class="font-semibold text-amber-900 mb-1">天道流自動化管線</h3>
+                <p class="text-xs text-amber-700">MIS 系統日誌同步對齊</p>
+            </div>
+        </div>
+
+        <div class="bg-gray-900 text-green-400 p-4 rounded-xl font-mono text-sm h-64 overflow-y-auto shadow-inner">
+            <div class="text-gray-500">> [SYSTEM] 天道流自動化稽核管線就緒。</div>
+            <div class="text-gray-500">> [SYSTEM] 等待調度指令...</div>
+            <div id="console-output"></div>
+        </div>
+    </div>
+
     <script async defer src="https://apis.google.com/js/api.js"></script>
     <script async defer src="https://accounts.google.com/gsi/client"></script>
 
     <script>
         // 1. 系統全域配置
         const TDF_CONFIG = {
-            CLIENT_ID: '113481234677-vhtkocf6nsp7pm47figsdgm6vsdqlrea.apps.googleusercontent.com', // 請替換成您的 Google Client ID
+            // 🌟 這裡記得填入您修正後的正確 Client ID 喔！
+            CLIENT_ID: '113481234677-vhtkocf6nsp7pm47figsdgm6vsdqlrea.apps.googleusercontent.com', 
             DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
             SCOPES: 'https://www.googleapis.com/auth/drive.readonly'
         };
 
-        // 2. 核心狀態機
         const state = {
             gapiInited: false,
             driveLoaded: false,
@@ -54,38 +98,25 @@
             tokenClient: null
         };
 
-        // ==========================================
-        // 🌟 核心修正：揚棄輪詢，改用正統雙軌防禦性事件驅動
-        // ==========================================
-        let isCoreInitialized = false; // 防止重複初始化鎖
+        let isCoreInitialized = false;
 
-        // 管線 A：當網頁 DOM 結構就緒時觸發
         window.addEventListener('DOMContentLoaded', () => {
-            console.log("⚡ DOM 結構就緒，啟動天道流載入程序...");
             checkAndTriggerInit();
         });
 
-        // 管線 B：保底保險機制（防止部分行動端或隱私瀏覽器 async 載入時序錯亂）
         window.onload = () => {
-            console.log("⚡ Window 資源完全加載，執行保底對齊檢查...");
             checkAndTriggerInit();
         };
 
-        // 檢查指令碼狀態並觸發初始化
         function checkAndTriggerInit() {
             if (isCoreInitialized) return;
-
             const gapiReady = typeof gapi !== 'undefined';
             const googleReady = typeof google !== 'undefined';
 
-            console.log(`📡 元件狀態校對 -> GAPI 腳本: ${gapiReady ? 'OK' : '未到位'}, GIS 腳本: ${googleReady ? 'OK' : '未到位'}`);
-
-            // 當兩大 Google 核心腳本皆成功掛載於 window，立刻解鎖初始化
             if (gapiReady && googleReady) {
                 isCoreInitialized = true;
                 initializeSystem();
             } else {
-                // 🌟 超時保底防護：若過了載入點腳本依然失聯（如被 AdBlock 攔截），3 秒內強行噴出具體錯誤，拒絕靜默卡死！
                 setTimeout(() => {
                     if (!isCoreInitialized) {
                         const missing = !gapiReady ? "GAPI 腳本被阻斷" : "GIS 驗證組件被阻斷";
@@ -95,35 +126,21 @@
             }
         }
 
-        // 3. 系統初始化核心
         async function initializeSystem() {
-            console.log("開始初始化天道流核心...");
             try {
-                // 處理 GAPI (Google API Client) 初始化
                 if (typeof gapi !== 'undefined') {
                     gapi.load('client', async () => {
                         try {
                             await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
                             state.gapiInited = true;
-                            
-                            if (gapi.client.drive) {
-                                state.driveLoaded = true;
-                                console.log("GAPI Drive 核心組件掛載成功。");
-                            } else {
-                                await gapi.client.load('drive', 'v3');
-                                state.driveLoaded = true;
-                            }
+                            state.driveLoaded = !!gapi.client.drive;
                             enableAuthButtonIfReady();
                         } catch (initErr) {
-                            console.error("GAPI 內部初始化失敗:", initErr);
                             reportInitError("GAPI 初始化失敗");
                         }
                     });
-                } else {
-                    reportInitError("GAPI 斷線");
                 }
 
-                // 處理 GIS (Google Identity Services) 初始化
                 if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
                     state.tokenClient = google.accounts.oauth2.initTokenClient({
                         client_id: TDF_CONFIG.CLIENT_ID,
@@ -133,75 +150,87 @@
                     });
                     state.gisInited = true;
                     enableAuthButtonIfReady();
-                } else {
-                    reportInitError("GIS 斷線");
                 }
             } catch (err) {
-                console.error('天道系統核心初始化出錯：', err);
                 reportInitError("核心崩潰");
             }
         }
 
-        // 4. 狀態檢查哨：解鎖登入按鈕
         function enableAuthButtonIfReady() {
-            console.log(`狀態校對 -> GAPI: ${state.gapiInited}, Drive: ${state.driveLoaded}, GIS: ${state.gisInited}`);
-            
             if (state.gapiInited && state.driveLoaded && state.gisInited) {
                 const authBtn = document.getElementById('auth-btn');
                 const authBtnText = document.getElementById('auth-btn-text');
                 const spinner = document.getElementById('loading-spinner');
                 
-                // 解鎖按鈕與變更樣式
                 authBtn.disabled = false;
                 authBtn.classList.remove('cursor-not-allowed', 'bg-surface-container-highest', 'text-on-surface-variant');
                 authBtn.classList.add('cursor-pointer', 'bg-primary-container', 'text-on-primary-fixed', 'hover:opacity-90');
                 
-                // 隱藏 Spinner 並更換文字
                 if (spinner) spinner.style.display = 'none';
                 authBtnText.innerText = '登入天道流稽核系統';
 
-                // 綁定點擊事件
                 authBtn.onclick = () => {
                     if (state.tokenClient) {
                         state.tokenClient.requestAccessToken();
                     }
                 };
-
-                // 執行自動登入嘗試 (可選)
-                tryAutoLogin();
             }
         }
 
-        // 5. 異常狀況回報器
         function reportInitError(reason) {
             const authBtnText = document.getElementById('auth-btn-text');
             const authBtn = document.getElementById('auth-btn');
             const spinner = document.getElementById('loading-spinner');
-            
             if (spinner) spinner.style.display = 'none';
-            if (authBtnText) {
-                authBtnText.innerText = `載入失敗 (${reason})`;
-            }
+            if (authBtnText) authBtnText.innerText = `載入失敗 (${reason})`;
             if (authBtn) {
                 authBtn.classList.replace('bg-surface-container-highest', 'bg-red-200');
                 authBtn.classList.replace('text-on-surface-variant', 'text-red-800');
             }
         }
 
-        // 6. 授權回呼與自動登入保底
+        // ==========================================
+        // 🌟 核心修正：登入成功回呼，執行視圖切換與主程式啟動
+        // ==========================================
         function handleAuthCallback(response) {
             if (response.error !== undefined) {
                 console.error("授權失敗:", response);
                 alert("身份驗證失敗，請重新嘗試。");
                 return;
             }
+            
             console.log("授權成功！Token 已取回。", response);
-            // 這裡可以導向你的主稽核功能，例如：runAuditEngine();
+
+            // 1. 隱藏登入介面，拉起主控制台介面
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('main-view').classList.remove('hidden');
+
+            // 2. 於終端機輸出稽核連線成功的日誌
+            printLog("成功取得 Google OAuth 安全認證標記 (AccessToken)。");
+            printLog("開始對齊雲端硬碟自動化稽核管線...");
+            
+            // 這裡可以正式呼叫你原本的稽核主引擎
+            // runAuditEngine(); 
         }
 
-        function tryAutoLogin() {
-            console.log("嘗試執行背景自動登入對齊...");
-            // 自動登入邏輯（如讀取 localStorage token 驗證等）
+        // 終端機日誌輔助器
+        function printLog(message) {
+            const consoleBox = document.getElementById('console-output');
+            const time = new Date().toLocaleTimeString();
+            if (consoleBox) {
+                consoleBox.innerHTML += `<div class="mt-1"><span class="text-blue-400">[${time}]</span> > ${message}</div>`;
+            }
+        }
+
+        // 系統登出重置
+        function logoutSystem() {
+            // 清除 token 授權並還原視圖
+            if (gapi.client) {
+                gapi.client.setToken(null);
+            }
+            document.getElementById('main-view').classList.add('hidden');
+            document.getElementById('login-view').classList.remove('hidden');
+            printLog("管理員已安全登出系統。");
         }
     </script>
 </body>
