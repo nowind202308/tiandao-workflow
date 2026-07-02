@@ -138,7 +138,7 @@
             <textarea class="min-h-[180px] max-h-[300px] p-gutter font-data-md text-sm text-on-surface selection:bg-primary-container/30 bg-black/20 border-none focus:ring-0 resize-none" id="prompt-editor" placeholder="等待資料同步..."></textarea>
             <div class="p-3 grid grid-cols-2 gap-2 border-t border-outline-variant bg-surface-container-low">
                 <button class="bg-surface-container-highest text-on-surface py-3 rounded-sm font-label-caps text-[11px] border border-outline-variant active:bg-surface-bright transition-all disabled:opacity-50" id="save-btn" data-i18n="save_btn">---</button>
-                <button class="bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-[11px] flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow">
+                <button id="inject-btn" class="bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-[11px] flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow">
                     <span class="material-symbols-outlined text-[16px]">terminal</span>
                     <span data-i18n="inject_btn">---</span>
                 </button>
@@ -207,13 +207,11 @@
 
 <script>
     const TDF_CONFIG = {
-        CLIENT_ID: '113481234677-vhtkocf6nsp7pm47figsdgm6vsdqlrea.apps.googleusercontent.com', 
+        CLIENT_ID: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com', 
         SCOPES: 'https://www.googleapis.com/auth/drive',
         DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
         WORKSPACE_ROOT: 'TianDao_Workspace',
         TARGET_FILE: 'config.json',
-        OUTLINE_FILENAME: 'CHAPTER_001_OUTLINE.txt',
-        SUMMARY_FILENAME: 'CHAPTER_001_SUMMARY.txt'
     };
 
     const state = {
@@ -241,12 +239,49 @@
         if (parentId) q += ` and '${parentId}' in parents`;
 
         const resp = await gapi.client.drive.files.list({ q: q, fields: 'files(id, name)' });
-        if (resp.result.files.length > 0) {
-            console.log(`[Drive API] 尋獲 ${isFolder ? '目錄' : '檔案'}: ${name} (ID: ${resp.result.files[0].id})`);
-            return resp.result.files[0].id;
-        } else {
-            return null;
-        }
+        if (resp.result.files.length > 0) return resp.result.files[0].id;
+        return null;
+    }
+
+    // 只回傳實體檔案陣列 (ID與名稱)，不自動去副檔名，交由後續處理
+    async function getFilesInFolder(folderId) {
+        if (!folderId) return [];
+        const q = `'${folderId}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false`;
+        const resp = await gapi.client.drive.files.list({ q: q, fields: 'files(id, name)' });
+        return resp.result.files;
+    }
+
+    // 🌟 核心升級：深度掃描與萃取模組內容
+    async function fetchCharacterModules(files) {
+        return await Promise.all(files.map(async (f) => {
+            try {
+                // 下載純文字內容
+                const resp = await gapi.client.drive.files.get({ fileId: f.id, alt: 'media' });
+                const text = resp.body || "";
+                
+                // 運用正則表達式，解析 "[CHAR_YEC_BASE]" 及 "NAME: 葉辰 (Ye Chen)"
+                const idMatch = text.match(/^\[(.*?)\]/m) || text.match(/\[(CHAR_[a-zA-Z0-9_]+)\]/);
+                const nameMatch = text.match(/NAME:\s*(.+)/i);
+
+                // 如果解析失敗，則優雅降級 (Fallback) 使用檔案名稱
+                const modId = idMatch ? `[${idMatch[1]}]` : `[${f.name.replace(/\.txt$/i, '')}]`;
+                const modName = nameMatch ? nameMatch[1].trim() : f.name.replace(/\.txt$/i, '');
+
+                return { id: modId, name: modName };
+            } catch(e) {
+                console.warn(`無法讀取角色檔案內容: ${f.name}`);
+                const fallbackName = f.name.replace(/\.txt$/i, '');
+                return { id: `[${fallbackName}]`, name: fallbackName };
+            }
+        }));
+    }
+
+    function getIconForAction(actionName) {
+        if (actionName.includes('射擊') || actionName.includes('攻擊')) return 'target';
+        if (actionName.includes('掃描') || actionName.includes('偵測')) return 'search';
+        if (actionName.includes('移動') || actionName.includes('撤退')) return 'directions_run';
+        if (actionName.includes('駭入') || actionName.includes('系統')) return 'terminal';
+        return 'bolt';
     }
 
     async function fetchSystemConfig() {
@@ -257,22 +292,47 @@
 
             document.getElementById('secure-mask').innerText = 'ACCESSING_CENTRAL_CORE...';
             const coreId = await getDriveIdByName('01_CENTRAL_CORE', rootId, true);
+            
             const sysId = await getDriveIdByName('00_SYSTEM', coreId, true);
-            
             const fileId = await getDriveIdByName(TDF_CONFIG.TARGET_FILE, sysId, false);
-            if (!fileId) throw new Error(`找不到配置檔：${TDF_CONFIG.TARGET_FILE}`);
-
-            document.getElementById('secure-mask').innerText = 'DOWNLOADING_DATA...';
-            const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
-            
-            // 嘗試解析 JSON，捕捉格式錯誤
-            let configData;
-            try {
-                configData = JSON.parse(response.body);
-            } catch (jsonErr) {
-                throw new Error("config.json 格式錯誤，並非有效的 JSON");
+            let configData = {};
+            if (fileId) {
+                const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
+                try { configData = JSON.parse(response.body); } catch (e) {}
             }
+
+            document.getElementById('secure-mask').innerText = 'SCANNING_DYNAMIC_MODULES...';
+            const [charFolderId, sceneFolderId, actFolderId] = await Promise.all([
+                getDriveIdByName('01_CHARACTERS', coreId, true),
+                getDriveIdByName('02_SCENES', coreId, true),
+                getDriveIdByName('03_ACTIONS', coreId, true)
+            ]);
+
+            const [charFilesRaw, sceneFilesRaw, actFilesRaw] = await Promise.all([
+                getFilesInFolder(charFolderId),
+                getFilesInFolder(sceneFolderId),
+                getFilesInFolder(actFolderId)
+            ]);
+
+            // 執行角色內容深度讀取
+            document.getElementById('secure-mask').innerText = 'EXTRACTING_MODULE_DATA...';
+            const charactersExtracted = await fetchCharacterModules(charFilesRaw);
+
+            if (!configData.modules) configData.modules = {};
             
+            // 寫入萃取結果
+            if (charactersExtracted.length > 0) configData.modules.characters = charactersExtracted;
+            
+            if (sceneFilesRaw.length > 0) {
+                configData.modules.scenes = sceneFilesRaw.map(f => f.name.replace(/\.txt$/i, ''));
+            }
+            if (actFilesRaw.length > 0) {
+                configData.modules.actions = actFilesRaw.map(f => {
+                    const cleanName = f.name.replace(/\.txt$/i, '');
+                    return { id: cleanName, name: cleanName, version: "Dynamic", icon: getIconForAction(cleanName) };
+                });
+            }
+
             state.uiData = configData;
             renderUI(configData);
             
@@ -280,16 +340,14 @@
             document.getElementById('main-app-content').classList.add('unlocked');
             
         } catch (e) {
-            console.error('核心資料載入失敗', e);
+            console.error('資料載入失敗', e);
             document.getElementById('secure-mask').innerText = 'ERROR: ' + e.message;
         }
     }
 
-    // --- 強化版 UI 渲染引擎 (包含防呆機制) ---
     function renderUI(config) {
         if (!config) return;
 
-        // 1. 注入 i18n 文字 (使用 ?. 防禦)
         if (config?.ui) {
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
@@ -300,16 +358,22 @@
             });
         }
 
-        // 2. 注入下拉選單 (使用 ?. 防禦)
+        // 🌟 解耦渲染：畫面顯示 Name，Value 帶入 ID
         if (config?.modules?.characters && Array.isArray(config.modules.characters)) {
-            document.getElementById('char-select').innerHTML = config.modules.characters.map(c => `<option>${c}</option>`).join('');
+            document.getElementById('char-select').innerHTML = config.modules.characters.map(c => {
+                // 兼容處理：如果仍是純字串則直接顯示，如果是萃取物件則拆分
+                if (typeof c === 'string') return `<option value="${c}">${c}</option>`;
+                return `<option value="${c.id}">${c.name}</option>`;
+            }).join('');
         }
         
         if (config?.modules?.scenes && Array.isArray(config.modules.scenes)) {
-            document.getElementById('scene-select').innerHTML = config.modules.scenes.map(s => `<option>${s}</option>`).join('');
+            document.getElementById('scene-select').innerHTML = config.modules.scenes.map(s => {
+                if (typeof s === 'string') return `<option value="${s}">${s}</option>`;
+                return `<option value="${s.id}">${s.name}</option>`;
+            }).join('');
         }
 
-        // 3. 注入動作模組卡片 (使用 ?. 防禦)
         const actionList = document.getElementById('action-list');
         actionList.innerHTML = '';
         if (config?.modules?.actions && Array.isArray(config.modules.actions)) {
@@ -339,15 +403,10 @@
                 });
                 actionList.appendChild(card);
             });
-        } else {
-            actionList.innerHTML = '<div class="p-4 text-center text-on-surface-variant font-data-md text-[12px] glass-panel">讀取不到動作模組，請檢查 config.json</div>';
         }
 
-        // 4. 預設 Prompt
         if (config?.default_prompt) {
             document.getElementById('prompt-editor').value = config.default_prompt;
-        } else {
-            document.getElementById('prompt-editor').value = "// 讀取不到預設提示詞...";
         }
 
         runAuditEngine();
@@ -360,9 +419,8 @@
         const targetSpan = document.getElementById('audit-action-target');
         const promptText = document.getElementById('prompt-editor').value || '';
 
-        const isShootingSelected = state.selectedAction === 'ACT_精準射擊';
+        const isShootingSelected = state.selectedAction && state.selectedAction.includes('射擊');
         const hasBlindness = state.physiologicalStates.blindness;
-        
         const hasBlockedTagInText = promptText.includes('[PHYS_BLIND_RIGHT_EYE]');
         const blockedByRegex = /BLOCKED_BY:\s*([^\]\r\n]+)/i;
         const match = promptText.match(blockedByRegex);
@@ -376,16 +434,33 @@
         }
     }
 
+    // 🌟 注入指令行為 (Inject Command)
+    document.getElementById('inject-btn').addEventListener('click', () => {
+        const charId = document.getElementById('char-select').value; // 抓取到的會是 [CHAR_YEC_BASE]
+        const scene = document.getElementById('scene-select').value;
+        const action = state.selectedAction;
+        const editor = document.getElementById('prompt-editor');
+        
+        const injectStr = `\n// --- 指令注入 ---\n目標實體: ${charId}\n行為呼叫: [${action}]\n環境載入: ${scene}\n`;
+        editor.value = (editor.value.trim() + injectStr).trim() + "\n";
+        
+        // 視覺反饋
+        const btnText = document.querySelector('#inject-btn span[data-i18n="inject_btn"]');
+        const originalText = btnText.innerText;
+        btnText.innerText = "注入成功";
+        setTimeout(() => btnText.innerText = originalText, 1500);
+        
+        runAuditEngine();
+    });
+
     document.getElementById('auth-btn').addEventListener('click', () => {
         if (!state.tokenClient) return;
-        
         state.tokenClient.callback = async (resp) => {
             if (resp.error !== undefined) throw (resp);
             document.getElementById('auth-btn-text').innerText = 'AGENT_AUTH';
             document.getElementById('auth-btn').classList.replace('bg-primary-container', 'bg-surface-container-highest');
             await fetchSystemConfig();
         };
-
         if (gapi.client.getToken() === null) {
             state.tokenClient.requestAccessToken({prompt: 'consent'});
         } else {
