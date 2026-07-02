@@ -35,6 +35,23 @@
         }
       }
     }
+
+    // 檢查 API 是否已定義，避免重複載入
+    function safeInit() {
+        if (typeof gapi !== 'undefined' && typeof google !== 'undefined') {
+            console.log("[System] API 資源就緒，執行初始化...");
+            gapiLoaded();
+            gisLoaded();
+        } else {
+            console.warn("[System] API 資源尚未就緒，重試中...");
+            setTimeout(safeInit, 500);
+        }
+    }
+
+    // 替換原本的 window.onload，確保腳本完成掛載
+    window.addEventListener('load', () => {
+        setTimeout(safeInit, 1000);
+    });
   </script>
   <style data-purpose="global-styles">
     body {
