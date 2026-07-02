@@ -73,6 +73,43 @@
         client.requestAccessToken();
     });
 
+    function renderUI(config) {
+        if (!config) return;
+
+        // 直接鎖定 ID 進行填充，不再依賴屬性掃描
+        if (config.ui) {
+            const titleEl = document.querySelector('h1[data-i18n="app_title"]');
+            if (titleEl) titleEl.innerText = config.ui.app_title;
+            
+            const moduleLabel = document.querySelector('[data-i18n="module_label"]');
+            if (moduleLabel) moduleLabel.innerText = config.ui.module_label;
+            
+            const projectTitle = document.querySelector('[data-i18n="project_title"]');
+            if (projectTitle) projectTitle.innerText = config.ui.project_title;
+        }
+
+        // 填充下拉選單
+        if (config.modules?.characters) {
+            document.getElementById('char-select').innerHTML = config.modules.characters
+                .map(c => typeof c === 'string' ? `<option value="${c}">${c}</option>` : `<option value="${c.id}">${c.name}</option>`)
+                .join('');
+        }
+        
+        if (config.modules?.scenes) {
+            document.getElementById('scene-select').innerHTML = config.modules.scenes
+                .map(s => typeof s === 'string' ? `<option value="${s}">${s}</option>` : `<option value="${s.id}">${s.name}</option>`)
+                .join('');
+        }
+
+        // 重新渲染動作清單
+        if (config.modules?.actions) {
+            const actionSelect = document.getElementById('action-select');
+            actionSelect.innerHTML = config.modules.actions.map(act => `<option value="${act.id}">${act.name}</option>`).join('');
+        }
+
+        console.log("介面已強制刷新，檢查 DOM 填充狀態");
+    }
+
     // API 載入檢查
     function checkApiReady() {
         if (typeof gapi !== 'undefined' && typeof google !== 'undefined') return true;
