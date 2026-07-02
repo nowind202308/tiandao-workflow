@@ -259,7 +259,7 @@
     const state = {
         tokenClient: null,
         gapiInited: false,
-        driveLoaded: false, // 追蹤 drive 組件是否真正載入完畢
+        driveLoaded: false, 
         gisInited: false,
         selectedAction: 'ACT_戰術移動',
         physiologicalStates: { blindness: true }, 
@@ -267,7 +267,6 @@
         cachedFiles: {}
     };
 
-    // 物理循環輪詢：確保 Google 官方兩大 JS 檔案下載成功後才發動初始化
     let checkScriptsInterval = setInterval(() => {
         if (typeof gapi !== 'undefined' && typeof google !== 'undefined') {
             clearInterval(checkScriptsInterval);
@@ -277,18 +276,16 @@
 
     async function initializeSystem() {
         try {
-            // 1. 載入基本客戶端
             gapi.load('client', async () => {
                 try {
+                    // 🎯 重構：移除與 oauth2 衝突的 apiKey 參數，僅初始化偵測文件
                     await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
                     state.gapiInited = true;
                     
-                    // 核心防禦：強制確認 drive 客戶端對象已經成功掛載
                     if (gapi.client.drive) {
                         state.driveLoaded = true;
                         console.log("GAPI Drive 核心組件掛載成功。");
                     } else {
-                        console.warn("基本初始化完成，但 drive 尚未就緒，等待動態載入...");
                         await gapi.client.load('drive', 'v3');
                         state.driveLoaded = true;
                     }
@@ -298,7 +295,6 @@
                 }
             });
 
-            // 2. 載入 Google Identity Services (OAuth2)
             state.tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: TDF_CONFIG.CLIENT_ID,
                 scope: TDF_CONFIG.SCOPES,
@@ -312,7 +308,6 @@
     }
 
     function enableAuthButtonIfReady() {
-        // 嚴格門檻：必須同時滿足 GIS、GAPI、以及 Drive 客戶端皆完全就緒，才允許解除按鈕鎖定
         if (state.gapiInited && state.driveLoaded && state.gisInited) {
             const authBtn = document.getElementById('auth-btn');
             const authBtnText = document.getElementById('auth-btn-text');
@@ -320,7 +315,6 @@
             authBtn.classList.replace('bg-surface-container-highest', 'bg-primary-container');
             authBtn.classList.replace('text-on-surface-variant', 'text-on-primary-fixed');
             authBtnText.innerText = '登入天道流';
-            console.log("天道核心驗證管道全數打通，按鈕已安全解鎖。");
         }
     }
 
@@ -330,26 +324,19 @@
             throw (resp);
         }
         
-        // 雙重防禦檢查，防止非預期點擊造成的 undefined
         if (!gapi.client.drive) {
             alert('雲端硬碟組件仍在加載中，請稍候再試。');
             return;
         }
 
         document.getElementById('auth-btn-text').innerText = '核心校對中...';
-        
         await locateTargetFolder();
-        
         document.getElementById('auth-btn-text').innerText = '天道核心已授權';
         document.getElementById('auth-btn').classList.replace('bg-primary-container', 'bg-surface-container-highest');
         
-        // 資料夾定位完畢，立即撈取配置
         await fetchSystemConfig();
     }
 
-    /**
-     * 尋找特定資料夾（修正 files(id, name) 變數捕捉 Bug）
-     */
     async function locateTargetFolder() {
         try {
             const response = await gapi.client.drive.files.list({
@@ -361,7 +348,6 @@
                 state.targetFolderId = folders[0].id;
                 console.log('特定環境路徑指定成功，ID:', state.targetFolderId);
             } else {
-                // 如果因為權限隔離看不見，網頁端在根目錄直接自動初始化一個它完全掌控的資料夾
                 const createResponse = await gapi.client.drive.files.create({
                     resource: {
                         name: TDF_CONFIG.FOLDER_NAME,
@@ -370,17 +356,13 @@
                     fields: 'id'
                 });
                 state.targetFolderId = createResponse.result.id;
-                alert(`天道流專屬資料夾「${TDF_CONFIG.FOLDER_NAME}」已在您的雲端硬碟根目錄自動初始化建立成功！請將您的檔案移入此新資料夾中。`);
+                alert(`天道流專屬資料夾「${TDF_CONFIG.FOLDER_NAME}」已自動建立！請將您的檔案移入此資料夾。`);
             }
         } catch (err) {
             console.error('導航鎖定特定資料夾失敗', err);
-            alert('導航鎖定資料夾失敗: ' + err.message);
         }
     }
 
-    /**
-     * 限制搜尋作用域：只在鎖定的特定資料夾範圍內進行檔案搜尋
-     */
     async function findFileByName(filename) {
         if (state.cachedFiles[filename]) return state.cachedFiles[filename];
         if (!state.targetFolderId) return null;
@@ -395,7 +377,6 @@
         } catch (err) { return null; }
     }
 
-    // 觸發 OAuth2 安全認證
     document.getElementById('auth-btn').addEventListener('click', () => {
         if (!state.tokenClient) return alert('驗證組件尚未就緒');
         try {
@@ -405,11 +386,10 @@
         }
     });
 
-    // --- 左移源頭審計引擎 (Shift-Left Audit Engine) ---
     function runAuditEngine() {
         const auditPanel = document.getElementById('audit-alert');
         const reasonSpan = document.getElementById('audit-reason');
-        const isShootingSelected = state.selectedAction === 'ACT_精裝射擊';
+        const isShootingSelected = state.selectedAction === 'ACT_精準射擊';
         
         if (isShootingSelected && state.physiologicalStates.blindness) {
             auditPanel.classList.remove('hidden');
@@ -419,9 +399,6 @@
         }
     }
 
-    /**
-     * 讀取並動態解析 config.json（修復解析器對齊 Bug）
-     */
     async function fetchSystemConfig() {
         try {
             const fileId = await findFileByName(TDF_CONFIG.CONFIG_FILENAME);
@@ -429,7 +406,6 @@
             const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
             
             let configData = response.result;
-            // 防禦性轉型：確保不管 API 回傳字串或物件皆能精準解碼
             if (typeof configData === 'string') {
                 configData = JSON.parse(configData);
             }
@@ -447,10 +423,12 @@
     }
 
     /**
-     * 將大綱真實寫入儲存（修復 Google Drive API 純文字多媒體傳輸封裝格式 Bug）
+     * 🎯 核心重構：利用 Multipart/Related 機制打通大綱寫入管線
+     * 徹底修復 Multipart upload required (400) 錯誤
      */
     async function saveOutline() {
-        if (!gapi.client.getToken()) return alert('請先完成授權登入');
+        const tokenObj = gapi.client.getToken();
+        if (!tokenObj || !tokenObj.access_token) return alert('請先完成授權登入');
         if (!state.targetFolderId) return alert('尚未鎖定特定資料夾，拒絕傳輸。');
         
         const content = document.getElementById('prompt-editor').value;
@@ -461,33 +439,60 @@
 
         try {
             const fileId = await findFileByName(TDF_CONFIG.OUTLINE_FILENAME);
+            const accessToken = tokenObj.access_token;
+            
+            // 建立 Multipart 傳輸邊界字串
+            const boundary = '===TIANDAO_MULTIPART_BOUNDARY===';
+            const delimiter = `\r\n--${boundary}\r\n`;
+            const closeDelimiter = `\r\n--${boundary}--`;
+            
+            let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+            let method = 'POST';
+            
+            // 封裝中繼資料 (Metadata)
+            const metadata = {
+                name: TDF_CONFIG.OUTLINE_FILENAME,
+                mimeType: 'text/plain'
+            };
+            
             if (fileId) {
-                // 修正：標準多媒體覆寫串流
-                await gapi.client.drive.files.update({
-                    fileId: fileId,
-                    media: {
-                        mimeType: 'text/plain',
-                        body: content
-                    }
-                });
+                // 如果檔案存在，切換為覆寫更新（Update）管線
+                url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`;
+                method = 'PATCH';
             } else {
-                // 修正：標準多媒體新建並指派父節點
-                await gapi.client.drive.files.create({ 
-                    resource: { 
-                        name: TDF_CONFIG.OUTLINE_FILENAME, 
-                        mimeType: 'text/plain',
-                        parents: [state.targetFolderId] 
-                    }, 
-                    media: { 
-                        mimeType: 'text/plain', 
-                        body: content 
-                    } 
-                });
+                // 如果是新檔案，指定父資料夾
+                metadata.parents = [state.targetFolderId];
             }
+
+            // 實體多部分表單封裝
+            const multipartRequestBody =
+                delimiter +
+                'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+                JSON.stringify(metadata) +
+                delimiter +
+                'Content-Type: text/plain; charset=UTF-8\r\n\r\n' +
+                content +
+                closeDelimiter;
+
+            // 透過標準 fetch 發送，徹底隔離 api_key，僅帶入 Bearer 憑證
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': `multipart/related; boundary=${boundary}`
+                },
+                body: multipartRequestBody
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error ? errorData.error.message : '傳輸崩潰');
+            }
+
             alert('天道流資產已成功實體同步寫入雲端硬碟檔案中！');
         } catch (e) { 
             console.error(e);
-            alert('寫入特定資料夾失敗，請確認檔案存取權限。'); 
+            alert('寫入特定資料夾失敗：' + e.message); 
         } finally {
             saveBtn.innerText = '儲存至硬碟';
             saveBtn.disabled = false;
