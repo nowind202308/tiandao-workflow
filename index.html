@@ -5,10 +5,11 @@
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
     <title>天道工作流 (TianDao Workflow) V2.0 - Mobile</title>
     
+    <!-- 載入前端樣式與圖示組件 -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     
-    <!-- 強化非同步載入順序：強制回呼初始化 -->
+    <!-- 強化非同步載入順序：強制 Google 官方驗證與 API 核心 SDK -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js" async defer></script>
     
@@ -102,13 +103,14 @@
 </head>
 <body class="bg-background text-on-surface font-body-lg overflow-hidden h-screen flex flex-col">
 
+<!-- 控制台頂部導航列 -->
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
         <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">TIANDAO V2.0</h1>
     </div>
     <div class="flex items-center gap-3">
-        <!-- 預設顯示載入中，防空轉 -->
+        <!-- 初始化為防空轉保護狀態 -->
         <button class="bg-surface-container-highest text-on-surface-variant px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn" disabled>
             <span class="material-symbols-outlined text-[16px]">sync</span>
             <span id="auth-btn-text">載入系統中...</span>
@@ -122,6 +124,7 @@
 <div class="flex-1 mt-14 mb-16 overflow-y-auto relative flex flex-col" id="scroll-container">
     <div class="scanline"></div>
     
+    <!-- 當前模組標題 -->
     <div class="px-gutter py-4 bg-surface-container-low border-b border-outline-variant">
         <div class="flex justify-between items-end">
             <div>
@@ -135,7 +138,9 @@
         </div>
     </div>
 
+    <!-- 工作台核心操作區 -->
     <main class="flex-1 bg-surface-dim flex flex-col">
+        <!-- 雲端驅動下拉選單 -->
         <div class="p-gutter grid grid-cols-1 gap-4 bg-surface-container-lowest/30 border-b border-outline-variant">
             <div class="space-y-1">
                 <label class="font-label-caps text-[10px] text-on-surface-variant">選定角色 (Selected Character)</label>
@@ -159,9 +164,11 @@
             </div>
         </div>
 
+        <!-- 動作行為卡片列表 -->
         <div class="p-gutter space-y-4">
             <h3 class="font-label-caps text-[10px] text-on-surface-variant border-l-2 border-primary-container pl-2">動作模組選擇 (Action Module Selection)</h3>
             <div class="grid grid-cols-1 gap-3" id="action-list">
+                <!-- 移動行為 -->
                 <div class="action-card glass-panel p-4 rounded-sm active:bg-surface-container-highest transition-colors flex items-center gap-4 cursor-pointer" data-id="ACT_戰術移動">
                     <div class="bg-surface-container-highest p-2 rounded">
                         <span class="material-symbols-outlined text-primary-fixed-dim text-[24px]">directions_run</span>
@@ -173,6 +180,7 @@
                     <span class="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
                 </div>
                 
+                <!-- 射擊行為：包含源頭審計引擎阻斷攔截容器 -->
                 <div id="shooting-action-container">
                     <div class="action-card glass-panel p-4 rounded-sm active:bg-surface-container-highest transition-colors flex items-center gap-4 cursor-pointer" data-id="ACT_精準射擊">
                         <div class="bg-surface-container-highest p-2 rounded">
@@ -185,6 +193,7 @@
                         <span class="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
                     </div>
                     
+                    <!-- 審核警示面板（預設隱藏，命中物理干涉時自動亮起） -->
                     <div class="hidden mt-2 border-2 border-error-container bg-error-container/5 p-4 rounded-sm relative" id="audit-alert">
                         <div class="flex justify-between items-start mb-3">
                             <div class="flex items-center gap-3">
@@ -206,15 +215,17 @@
             </div>
         </div>
 
+        <!-- 提示詞文字編輯器與寫入按鈕 -->
         <div class="mt-4 border-t border-outline-variant bg-surface-container-lowest flex flex-col">
-            <textarea class="min-h-[180px] p-gutter font-data-md text-sm text-on-surface bg-black/20 border-none focus:ring-0 resize-none" id="prompt-editor">// 章節大綱草案
+            <textarea class="min-h-[180px] p-gutter font-data-md text-sm text-on-surface bg-black/20 border-none focus:ring-0 resize-none" id="prompt-editor" placeholder="// 輸入章節大綱...">// 章節大綱草案
 [CHAR_YEC_BASE] 進入艙室。</textarea>
             <div class="p-3 grid grid-cols-2 gap-2 border-t border-outline-variant bg-surface-container-low">
-                <button class="bg-surface-container-highest text-on-surface py-3 rounded-sm font-label-caps text-[11px]" id="save-btn">儲存至硬碟</button>
+                <button class="bg-surface-container-highest text-on-surface py-3 rounded-sm font-label-caps text-[11px] disabled:opacity-50" id="save-btn">儲存至硬碟</button>
                 <button class="bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-[11px] flex items-center justify-center gap-2 cyan-glow">注入指令</button>
             </div>
         </div>
 
+        <!-- 狀態日誌抽屜（展開後可同步繼承記憶狀態機） -->
         <div class="hidden border-t border-outline-variant bg-surface-container-lowest p-gutter space-y-6" id="status-panel">
             <div class="flex justify-between items-center">
                 <h2 class="font-label-caps text-[11px] text-tertiary uppercase">狀態日誌 (Status Log)</h2>
@@ -230,20 +241,31 @@
                     <span class="font-data-md text-sm text-primary-fixed-dim" id="state-ttl">3 章節</span>
                 </div>
             </div>
-            <button class="w-full bg-surface-container-high text-tertiary-fixed-dim font-data-md text-sm py-3 border" id="sync-btn">同步上一章節 (Sync)</button>
+            <button class="w-full bg-surface-container-high text-tertiary-fixed-dim font-data-md text-sm py-3 border disabled:opacity-50" id="sync-btn">同步上一章節 (Sync)</button>
         </div>
     </main>
 </div>
 
-<nav class="fixed bottom-0 w-full h-16 bg-surface-container border-t border-outline-variant flex items-center justify-around px-2 z-50"></nav>
+<!-- 底部導航列 -->
+<nav class="fixed bottom-0 w-full h-16 bg-surface-container border-t border-outline-variant flex items-center justify-around px-2 z-50">
+    <button class="flex flex-col items-center gap-1 active-nav-item pt-2 pb-1 px-3">
+        <span class="material-symbols-outlined text-[22px]">settings_input_component</span>
+        <span class="font-label-caps text-[9px] uppercase">系統</span>
+    </button>
+    <button class="flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3" id="bio-nav-btn">
+        <span class="material-symbols-outlined text-[22px]">health_and_safety</span>
+        <span class="font-label-caps text-[9px] uppercase">生理</span>
+    </button>
+</nav>
 
-<!-- 核心加固腳本 -->
+<!-- 天道核心數據隔離與 Google Drive 特定資料夾讀寫腳本 -->
 <script>
     const TDF_CONFIG = {
-        // 🚨 請務必將下方這一行替換成您在 Google Console 複製的 Client ID
+        // 🚨 核心步驟：請將下方這一行替換成您在 Google Cloud 複製的真實 Client ID
         CLIENT_ID: '113481234677-vhtkocf6nsp7pm47figsdgm6vsdqlrea.apps.googleusercontent.com', 
         SCOPES: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
         DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+        FOLDER_NAME: 'tiandao-data', // 🎯 物理隔離限制：鎖定特定資料夾名稱
         CONFIG_FILENAME: 'config.json',
         OUTLINE_FILENAME: 'CHAPTER_001_OUTLINE.txt',
         SUMMARY_FILENAME: 'CHAPTER_001_SUMMARY.txt'
@@ -254,11 +276,12 @@
         gapiInited: false,
         gisInited: false,
         selectedAction: 'ACT_戰術移動',
-        physiologicalStates: { blindness: true },
+        physiologicalStates: { blindness: true }, // 生理狀態機預設值
+        targetFolderId: null, // 用於鎖定特定資料夾的雲端唯一 ID
         cachedFiles: {}
     };
 
-    // 強制按順序定時檢查載入狀態
+    // 物理循環輪詢：確保 Google 兩大官方 SDK 下載成功後自動喚醒初始化
     let checkScriptsInterval = setInterval(() => {
         if (typeof gapi !== 'undefined' && typeof google !== 'undefined') {
             clearInterval(checkScriptsInterval);
@@ -268,14 +291,14 @@
 
     async function initializeSystem() {
         try {
-            // 初始化 GAPI
+            // 載入 Google Client Core
             gapi.load('client', async () => {
                 await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
                 state.gapiInited = true;
                 enableAuthButtonIfReady();
             });
 
-            // 初始化 GIS
+            // 載入 Google Identity Services (OAuth2)
             state.tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: TDF_CONFIG.CLIENT_ID,
                 scope: TDF_CONFIG.SCOPES,
@@ -284,7 +307,7 @@
             state.gisInited = true;
             enableAuthButtonIfReady();
         } catch (err) {
-            alert('天道系統初始化失敗，請檢查 Client ID 格式是否正確：' + err.message);
+            alert('天道系統核心初始化出錯：' + err.message);
         }
     }
 
@@ -299,31 +322,75 @@
         }
     }
 
-    function handleAuthCallback(resp) {
+    async function handleAuthCallback(resp) {
         if (resp.error !== undefined) {
-            alert('Google 驗證拒絕：' + resp.error);
+            alert('Google 核心安全拒絕授權：' + resp.error);
             throw (resp);
         }
+        document.getElementById('auth-btn-text').innerText = '特定資料夾定位中...';
+        
+        // 核心對接第一步：立即穿透硬碟去指定並鎖定特定的資料夾 ID 位置
+        await locateTargetFolder();
+        
         document.getElementById('auth-btn-text').innerText = '天道核心已授權';
         document.getElementById('auth-btn').classList.replace('bg-primary-container', 'bg-surface-container-highest');
         fetchSystemConfig();
     }
 
-    // 觸發登入
+    /**
+     * 尋找並指定特定資料夾（tiandao-data）的雲端實體 ID 位置
+     */
+    async function locateTargetFolder() {
+        try {
+            const response = await gapi.client.drive.files.list({
+                q: `name = '${TDF_CONFIG.FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+                fields: 'files(id)'
+            });
+            const folders = response.result.files;
+            if (folders && folders.length > 0) {
+                state.targetFolderId = folders[0].id; // 精準指定該特定資料夾位置
+                console.log('環境特定資料夾鎖定成功，ID:', state.targetFolderId);
+            } else {
+                alert(`在您的雲端硬碟中找不到名為「${TDF_CONFIG.FOLDER_NAME}」的特定資料夾，請在硬碟中先手動建立此資料夾！`);
+            }
+        } catch (err) {
+            console.error('導航鎖定特定資料夾失敗', err);
+        }
+    }
+
+    /**
+     * 限制搜尋作用域：只在鎖定的特定資料夾範圍內進行檔案搜尋
+     */
+    async function findFileByName(filename) {
+        if (state.cachedFiles[filename]) return state.cachedFiles[filename];
+        if (!state.targetFolderId) return null; // 未鎖定特定資料夾前拒絕搜尋
+        
+        try {
+            // 透過 'parents' 條件，物理限制只能在特定資料夾內檢索
+            const response = await gapi.client.drive.files.list({ 
+                q: `name = '${filename}' and '${state.targetFolderId}' in parents and trashed = false` 
+            });
+            const files = response.result.files;
+            return (files && files.length > 0) ? (state.cachedFiles[filename] = files[0].id) : null;
+        } catch (err) { return null; }
+    }
+
+    // 觸發 OAuth2 安全認證
     document.getElementById('auth-btn').addEventListener('click', () => {
-        if (!state.tokenClient) return alert('驗證模組未準備就緒');
+        if (!state.tokenClient) return alert('驗證組件尚未就緒');
         try {
             state.tokenClient.requestAccessToken({ prompt: gapi.client.getToken() === null ? 'consent' : '' });
         } catch (e) {
-            alert('觸發登入視窗失敗，請確認您的 Client ID 是否填寫正確：' + e.message);
+            alert('喚醒 Google 登入視窗失敗，請確認 Client ID 格式。');
         }
     });
 
-    // --- 基礎審計、同步與儲存功能維持不變 ---
+    // --- 左移源頭審計引擎 (Shift-Left Audit Engine) ---
     function runAuditEngine() {
         const auditPanel = document.getElementById('audit-alert');
         const reasonSpan = document.getElementById('audit-reason');
         const isShootingSelected = state.selectedAction === 'ACT_精準射擊';
+        
         if (isShootingSelected && state.physiologicalStates.blindness) {
             auditPanel.classList.remove('hidden');
             reasonSpan.innerText = '右眼生理失明 [PHYS_BLIND_RIGHT_EYE]';
@@ -332,51 +399,89 @@
         }
     }
 
-    async function findFileByName(filename) {
-        if (state.cachedFiles[filename]) return state.cachedFiles[filename];
-        try {
-            const response = await gapi.client.drive.files.list({ q: `name = '${filename}' and trashed = false` });
-            const files = response.result.files;
-            return (files && files.length > 0) ? (state.cachedFiles[filename] = files[0].id) : null;
-        } catch (err) { return null; }
-    }
-
+    // 讀取特定資料夾中的 JSON 設定檔，動態注入選單
     async function fetchSystemConfig() {
         try {
             const fileId = await findFileByName(TDF_CONFIG.CONFIG_FILENAME);
             if (!fileId) return;
             const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
-            if (response.result.characters) {
-                document.getElementById('char-select').innerHTML = response.result.characters.map(c => `<option>${c}</option>`).join('');
+            
+            const configData = response.result;
+            if (configData.characters) {
+                document.getElementById('char-select').innerHTML = configData.characters.map(c => `<option>${c}</option>`).join('');
+            }
+            if (configData.scenes) {
+                document.getElementById('scene-select').innerHTML = configData.scenes.map(s => `<option>${s}</option>`).join('');
             }
         } catch (e) {}
     }
 
+    // 將大綱真實儲存至特定資料夾中 (具有防漏重建機制)
     async function saveOutline() {
         if (!gapi.client.getToken()) return alert('請先完成授權登入');
+        if (!state.targetFolderId) return alert('尚未鎖定特定資料夾，拒絕傳輸。');
+        
         const content = document.getElementById('prompt-editor').value;
-        const fileId = await findFileByName(TDF_CONFIG.OUTLINE_FILENAME);
+        const saveBtn = document.getElementById('save-btn');
+        
+        saveBtn.innerText = '儲存中...';
+        saveBtn.disabled = true;
+
         try {
+            const fileId = await findFileByName(TDF_CONFIG.OUTLINE_FILENAME);
             if (fileId) {
+                // 檔案存在於特定資料夾，覆寫更新
                 await gapi.client.drive.files.update({ fileId: fileId, media: { mimeType: 'text/plain', body: content } });
             } else {
-                await gapi.client.drive.files.create({ resource: { name: TDF_CONFIG.OUTLINE_FILENAME, mimeType: 'text/plain' }, media: { mimeType: 'text/plain', body: content } });
+                // 檔案不存在，新建並強制指定丟入特定資料夾內
+                await gapi.client.drive.files.create({ 
+                    resource: { 
+                        name: TDF_CONFIG.OUTLINE_FILENAME, 
+                        mimeType: 'text/plain',
+                        parents: [state.targetFolderId] 
+                    }, 
+                    media: { mimeType: 'text/plain', body: content } 
+                });
             }
-            alert('天道流資產已同步至雲端硬碟！');
-        } catch (e) { alert('寫入雲端失敗。'); }
+            alert('天道流資產已成功儲存至特定資料夾 tiandao-data 內部！');
+        } catch (e) { 
+            alert('寫入特定資料夾失敗，請確認檔案是否在該資料夾內。'); 
+        } finally {
+            saveBtn.innerText = '儲存至硬碟';
+            saveBtn.disabled = false;
+        }
     }
 
-    // 面板與卡片事件
-    document.getElementById('status-toggle').addEventListener('click', () => document.getElementById('status-panel').classList.toggle('hidden'));
+    // --- UI 控制與觸控反饋事件監聽 ---
+    document.getElementById('status-toggle').addEventListener('click', () => {
+        const panel = document.getElementById('status-panel');
+        panel.classList.toggle('hidden');
+    });
+    document.getElementById('close-status').addEventListener('click', () => {
+        document.getElementById('status-panel').classList.add('hidden');
+    });
+
+    // 生理狀態導航列快速切換測試
+    document.getElementById('bio-nav-btn').addEventListener('click', () => {
+        state.physiologicalStates.blindness = !state.physiologicalStates.blindness;
+        alert(state.physiologicalStates.blindness ? "生理狀態機：[右眼生理失明] 已啟動阻斷" : "生理狀態機：全感官完全恢復");
+        runAuditEngine();
+    });
+
+    // 行為選取卡片切換
     document.querySelectorAll('.action-card').forEach(card => {
         card.addEventListener('click', function() {
-            document.querySelectorAll('.action-card').forEach(c => c.classList.remove('ring-2', 'ring-primary-container'));
-            this.classList.add('ring-2', 'ring-primary-container');
+            document.querySelectorAll('.action-card').forEach(c => c.classList.remove('ring-2', 'ring-primary-container', 'bg-surface-container-highest'));
+            this.classList.add('ring-2', 'ring-primary-container', 'bg-surface-container-highest');
             state.selectedAction = this.getAttribute('data-id');
             runAuditEngine();
         });
     });
+
+    // 編輯器輸入審計即時校對
+    document.getElementById('prompt-editor').addEventListener('input', runAuditEngine);
     document.getElementById('save-btn').addEventListener('click', saveOutline);
+    
     window.onload = () => runAuditEngine();
 </script>
 </body>
