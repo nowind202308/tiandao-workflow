@@ -317,22 +317,34 @@
         if (parentId) q += ` and '${parentId}' in parents`;
 
         const resp = await gapi.client.drive.files.list({ q: q, fields: 'files(id, name)' });
-        return resp.result.files.length > 0 ? resp.result.files[0].id : null;
+        
+        if (resp.result.files.length > 0) {
+            console.log(`[Drive API] 尋獲 ${isFolder ? '目錄' : '檔案'}: ${name} (ID: ${resp.result.files[0].id})`);
+            return resp.result.files[0].id;
+        } else {
+            console.warn(`[Drive API] 尋找失敗: ${name} (Parent ID: ${parentId})`);
+            return null;
+        }
     }
 
     // 定位天道流 config.json
     async function fetchSystemConfig() {
         try {
             document.getElementById('secure-mask').innerText = 'LOCATING_WORKSPACE...';
+            
+            // 逐層尋訪並給予精準錯誤回報
             const rootId = await getDriveIdByName(TDF_CONFIG.WORKSPACE_ROOT, null, true);
-            if (!rootId) throw new Error("無效的工作區：找不到 TianDao_Workspace");
+            if (!rootId) throw new Error(`找不到根目錄：${TDF_CONFIG.WORKSPACE_ROOT}`);
 
             document.getElementById('secure-mask').innerText = 'ACCESSING_CENTRAL_CORE...';
             const coreId = await getDriveIdByName('01_CENTRAL_CORE', rootId, true);
-            const sysId = await getDriveIdByName('00_SYSTEM', coreId, true);
-            const fileId = await getDriveIdByName(TDF_CONFIG.TARGET_FILE, sysId, false);
+            if (!coreId) throw new Error(`已找到根目錄，但找不到子目錄：01_CENTRAL_CORE`);
 
-            if (!fileId) throw new Error("無效的配置：找不到 config.json");
+            const sysId = await getDriveIdByName('00_SYSTEM', coreId, true);
+            if (!sysId) throw new Error(`已找到 CORE，但找不到子目錄：00_SYSTEM`);
+
+            const fileId = await getDriveIdByName(TDF_CONFIG.TARGET_FILE, sysId, false);
+            if (!fileId) throw new Error(`已進入 SYSTEM，但找不到配置檔：${TDF_CONFIG.TARGET_FILE}`);
 
             document.getElementById('secure-mask').innerText = 'DOWNLOADING_DATA...';
             const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
@@ -345,6 +357,7 @@
             // 隱藏遮罩，解鎖 UI
             document.getElementById('secure-mask').classList.add('hidden-mask');
             document.getElementById('main-app-content').classList.add('unlocked');
+            console.log("[System] 天道流配置載入完畢，UI 已解鎖。");
             
         } catch (e) {
             console.error('核心資料載入失敗', e);
