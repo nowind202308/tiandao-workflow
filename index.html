@@ -1,489 +1,208 @@
 <!DOCTYPE html>
-<html class="dark" lang="zh-TW">
+<html lang="zh-TW">
 <head>
-    <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
-    <title>天道工作流 (TianDao Workflow) V2.0 - Mobile</title>
-    
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-    
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="https://apis.google.com/js/api.js" async defer></script>
-    
-    <style>
-        .glass-panel {
-            background: rgba(21, 29, 30, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(132, 148, 149, 0.1);
-        }
-        .scanline {
-            width: 100%;
-            height: 2px;
-            background: rgba(0, 219, 231, 0.05);
-            position: absolute;
-            top: 0;
-            animation: scan 8s linear infinite;
-            z-index: 10;
-            pointer-events: none;
-        }
-        @keyframes scan {
-            0% { top: 0; }
-            100% { top: 100%; }
-        }
-        .cyan-glow {
-            box-shadow: 0 0 15px rgba(0, 219, 231, 0.15);
-        }
-        .active-nav-item {
-            color: #00f2ff;
-            border-top: 2px solid #00f2ff;
-        }
-    </style>
-
-    <script id="tailwind-config">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天道流稽核引擎</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
         tailwind.config = {
-            darkMode: "class",
             theme: {
                 extend: {
                     colors: {
-                        "on-primary-fixed": "#002022",
-                        "surface-container-low": "#151d1e",
-                        "inverse-on-surface": "#2a3232",
-                        "on-primary-container": "#006a71",
-                        "surface-tint": "#00dbe7",
-                        "secondary-fixed": "#e5e2e1",
-                        "primary-fixed": "#74f5ff",
-                        "surface-container-lowest": "#080f10",
-                        "on-secondary-container": "#bab8b7",
-                        "surface": "#0d1515",
-                        "error-container": "#93000a",
-                        "surface-container-highest": "#2e3637",
-                        "surface-dim": "#0d1515",
-                        "inverse-primary": "#00696f",
-                        "on-secondary": "#313030",
-                        "primary-fixed-dim": "#00dbe7",
-                        "on-tertiary-fixed": "#291800",
-                        "on-surface-variant": "#b9cacb",
-                        "on-tertiary": "#452b00",
-                        "tertiary-container": "#ffd49d",
-                        "on-surface": "#dce4e4",
-                        "on-error-container": "#ffdad6",
-                        "tertiary": "#fff6ef",
-                        "surface-container": "#192122",
-                        "background": "#0d1515",
-                        "on-primary": "#00363a",
-                        "on-primary-fixed-variant": "#004f54",
-                        "on-error": "#690005",
-                        "error": "#ffb4ab",
-                        "on-secondary-fixed": "#1c1b1b",
-                        "on-tertiary-container": "#845600",
-                        "surface-container-high": "#232b2c",
-                        "secondary": "#c9c6c5",
-                        "on-tertiary-fixed-variant": "#633f00",
-                        "secondary-container": "#4a4949",
-                        "primary": "#e1fdff",
-                        "tertiary-fixed": "#ffddb4",
-                        "on-secondary-fixed-variant": "#474646",
-                        "tertiary-fixed-dim": "#ffb952",
-                        "on-background": "#dce4e4",
-                        "surface-bright": "#333b3b",
-                        "primary-container": "#00f2ff",
-                        "secondary-fixed-dim": "#c9c6c5",
-                        "inverse-surface": "#dce4e4",
-                        "outline-variant": "#3a494b",
-                        "outline": "#849495",
-                        "surface-variant": "#2e3637"
+                        'surface-container-highest': '#e6e2de',
+                        'text-on-surface-variant': '#494541',
+                        'primary-container': '#004b6e',
+                        'text-on-primary-fixed': '#ffffff'
                     }
                 }
             }
-        };
+        }
     </script>
 </head>
-<body class="bg-background text-on-surface font-body-lg overflow-hidden h-screen flex flex-col">
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
 
-<header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
-    <div class="flex items-center gap-2">
-        <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">TIANDAO V2.0</h1>
-    </div>
-    <div class="flex items-center gap-3">
-        <button class="bg-surface-container-highest text-on-surface-variant px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn" disabled>
-            <span class="material-symbols-outlined text-[16px]">sync</span>
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
+        <h1 class="text-2xl font-bold text-gray-800 mb-2 text-center">天道流稽核系統</h1>
+        <p class="text-sm text-gray-500 mb-6 text-center">核心自動化運維控制台</p>
+        
+        <button id="auth-btn" disabled class="w-full py-4 px-6 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all duration-300 cursor-not-allowed bg-surface-container-highest text-on-surface-variant">
+            <svg id="loading-spinner" class="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
             <span id="auth-btn-text">載入系統中...</span>
         </button>
-        <button class="text-on-surface-variant hover:bg-surface-container-high p-1.5 rounded transition-colors" id="status-toggle">
-            <span class="material-symbols-outlined text-[20px]">analytics</span>
-        </button>
-    </div>
-</header>
-
-<div class="flex-1 mt-14 mb-16 overflow-y-auto relative flex flex-col" id="scroll-container">
-    <div class="scanline"></div>
-    
-    <div class="px-gutter py-4 bg-surface-container-low border-b border-outline-variant">
-        <div class="flex justify-between items-end">
-            <div>
-                <h2 class="font-label-caps text-[9px] text-on-surface-variant uppercase mb-1">當前模組</h2>
-                <div class="font-headline-md font-bold text-primary-fixed-dim leading-tight" id="project-title">Project Alpha (Alpha 專案)</div>
-            </div>
-            <div class="text-right">
-                <div class="font-data-md text-[10px] text-on-tertiary-container opacity-70">v2.4.82</div>
-                <div class="font-data-md text-[10px] text-primary-fixed-dim">TD_V2_PROD_9921</div>
-            </div>
-        </div>
     </div>
 
-    <main class="flex-1 bg-surface-dim flex flex-col">
-        <div class="p-gutter grid grid-cols-1 gap-4 bg-surface-container-lowest/30 border-b border-outline-variant">
-            <div class="space-y-1">
-                <label class="font-label-caps text-[10px] text-on-surface-variant">選定角色 (Selected Character)</label>
-                <div class="relative">
-                    <select class="w-full bg-surface-container-high border border-outline text-on-surface px-3 py-2.5 rounded-sm appearance-none font-data-md text-sm" id="char-select">
-                        <option value="ID_098">[ID_098] YEC_駐點特工</option>
-                        <option value="ID_102">[ID_102] 遊牧民族飛行員</option>
-                    </select>
-                    <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
-                </div>
-            </div>
-            <div class="space-y-1">
-                <label class="font-label-caps text-[10px] text-on-surface-variant">場景設定 (Scene Setting)</label>
-                <div class="relative">
-                    <select class="w-full bg-surface-container-high border border-outline text-on-surface px-3 py-2.5 rounded-sm appearance-none font-data-md text-sm" id="scene-select">
-                        <option>雨夜城市廢墟</option>
-                        <option>軌道站內部</option>
-                    </select>
-                    <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
-                </div>
-            </div>
-        </div>
+    <script async defer src="https://apis.google.com/js/api.js"></script>
+    <script async defer src="https://accounts.google.com/gsi/client"></script>
 
-        <div class="p-gutter space-y-4">
-            <h3 class="font-label-caps text-[10px] text-on-surface-variant border-l-2 border-primary-container pl-2">動作模組選擇 (Action Module Selection)</h3>
-            <div class="grid grid-cols-1 gap-3" id="action-list">
-                <div class="action-card glass-panel p-4 rounded-sm active:bg-surface-container-highest transition-colors flex items-center gap-4 cursor-pointer" data-id="ACT_戰術移動">
-                    <div class="bg-surface-container-highest p-2 rounded">
-                        <span class="material-symbols-outlined text-primary-fixed-dim text-[24px]">directions_run</span>
-                    </div>
-                    <div class="flex-1">
-                        <div class="font-data-md text-on-surface">ACT_戰術移動</div>
-                        <div class="font-label-caps text-[8px] text-outline uppercase">Module v1.2</div>
-                    </div>
-                    <span class="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
-                </div>
-                
-                <div id="shooting-action-container">
-                    <div class="action-card glass-panel p-4 rounded-sm active:bg-surface-container-highest transition-colors flex items-center gap-4 cursor-pointer" data-id="ACT_精準射擊">
-                        <div class="bg-surface-container-highest p-2 rounded">
-                            <span class="material-symbols-outlined text-primary-fixed-dim text-[24px]">target</span>
-                        </div>
-                        <div class="flex-1">
-                            <div class="font-data-md text-on-surface">ACT_精準射擊</div>
-                            <div class="font-label-caps text-[8px] text-outline uppercase">Module v2.1</div>
-                        </div>
-                        <span class="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
-                    </div>
-                    
-                    <div class="hidden mt-2 border-2 border-error-container bg-error-container/5 p-4 rounded-sm relative" id="audit-alert">
-                        <div class="flex justify-between items-start mb-3">
-                            <div class="flex items-center gap-3">
-                                <div class="bg-error-container/20 p-2 rounded">
-                                    <span class="material-symbols-outlined text-error text-[24px]">warning</span>
-                                </div>
-                                <div>
-                                    <div class="font-data-md text-error font-bold">ACT_精準射擊</div>
-                                    <div class="font-label-caps text-[8px] text-error/60 uppercase">Warning State</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="p-3 bg-error-container text-[12px] font-data-md leading-relaxed text-on-error-container rounded-sm mb-2">
-                            <span class="font-bold underline">審核警示 (Audit Alert):</span><br/>
-                            被 [<span id="audit-reason">右眼生理失明</span>] 阻礙 (Blocked By)
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <script>
+        // 1. 系統全域配置
+        const TDF_CONFIG = {
+            CLIENT_ID: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com', // 請替換成您的 Google Client ID
+            DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+            SCOPES: 'https://www.googleapis.com/auth/drive.readonly'
+        };
 
-        <div class="mt-4 border-t border-outline-variant bg-surface-container-lowest flex flex-col">
-            <textarea class="min-h-[180px] p-gutter font-data-md text-sm text-on-surface bg-black/20 border-none focus:ring-0 resize-none" id="prompt-editor" placeholder="// 輸入章節大綱...">// 章節大綱草案
-[CHAR_YEC_BASE] 進入艙室。</textarea>
-            <div class="p-3 grid grid-cols-2 gap-2 border-t border-outline-variant bg-surface-container-low">
-                <button class="bg-surface-container-highest text-on-surface py-3 rounded-sm font-label-caps text-[11px]" id="save-btn">儲存至硬碟</button>
-                <button class="bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-[11px] flex items-center justify-center gap-2 cyan-glow">注入指令</button>
-            </div>
-        </div>
+        // 2. 核心狀態機
+        const state = {
+            gapiInited: false,
+            driveLoaded: false,
+            gisInited: false,
+            tokenClient: null
+        };
 
-        <div class="hidden border-t border-outline-variant bg-surface-container-lowest p-gutter space-y-6" id="status-panel">
-            <div class="flex justify-between items-center">
-                <h2 class="font-label-caps text-[11px] text-tertiary uppercase">狀態日誌 (Status Log)</h2>
-                <button class="text-on-surface-variant" id="close-status"><span class="material-symbols-outlined">close</span></button>
-            </div>
-            <div class="grid grid-cols-1 gap-2">
-                <div class="p-3 bg-surface-container-high flex justify-between items-center rounded-sm">
-                    <span class="font-data-md text-sm text-on-surface">失血量 (Blood Loss)</span>
-                    <span class="font-data-md text-sm text-error" id="state-blood-loss">20%</span>
-                </div>
-                <div class="p-3 bg-surface-container-high flex justify-between items-center rounded-sm">
-                    <span class="font-data-md text-sm text-on-surface">存活預期 (TTL Status)</span>
-                    <span class="font-data-md text-sm text-primary-fixed-dim" id="state-ttl">3 章節</span>
-                </div>
-            </div>
-            <button class="w-full bg-surface-container-high text-tertiary-fixed-dim font-data-md text-sm py-3 border" id="sync-btn">同步上一章節 (Sync)</button>
-        </div>
-    </main>
-</div>
+        // ==========================================
+        // 🌟 核心修正：揚棄輪詢，改用正統雙軌防禦性事件驅動
+        // ==========================================
+        let isCoreInitialized = false; // 防止重複初始化鎖
 
-<nav class="fixed bottom-0 w-full h-16 bg-surface-container border-t border-outline-variant flex items-center justify-around px-2 z-50">
-    <button class="flex flex-col items-center gap-1 active-nav-item pt-2 pb-1 px-3">
-        <span class="material-symbols-outlined text-[22px]">settings_input_component</span>
-        <span class="font-label-caps text-[9px] uppercase">系統</span>
-    </button>
-    <button class="flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3" id="bio-nav-btn">
-        <span class="material-symbols-outlined text-[22px]">health_and_safety</span>
-        <span class="font-label-caps text-[9px] uppercase">生理</span>
-    </button>
-</nav>
+        // 管線 A：當網頁 DOM 結構就緒時觸發
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log("⚡ DOM 結構就緒，啟動天道流載入程序...");
+            checkAndTriggerInit();
+        });
 
-<script>
-    const TDF_CONFIG = {
-        CLIENT_ID: '113481234677-vhtkocf6nsp7pm47figsdgm6vsdqlrea.apps.googleusercontent.com', 
-        SCOPES: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
-        DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
-        FOLDER_NAME: 'tiandao-data', 
-        CONFIG_FILENAME: 'config.json',
-        OUTLINE_FILENAME: 'CHAPTER_001_OUTLINE.txt',
-        SUMMARY_FILENAME: 'CHAPTER_001_SUMMARY.txt'
-    };
+        // 管線 B：保底保險機制（防止部分行動端或隱私瀏覽器 async 載入時序錯亂）
+        window.onload = () => {
+            console.log("⚡ Window 資源完全加載，執行保底對齊檢查...");
+            checkAndTriggerInit();
+        };
 
-    const state = {
-        tokenClient: null,
-        gapiInited: false,
-        driveLoaded: false, 
-        gisInited: false,
-        selectedAction: 'ACT_戰術移動',
-        physiologicalStates: { blindness: true }, 
-        targetFolderId: null, 
-        cachedFiles: {}
-    };
+        // 檢查指令碼狀態並觸發初始化
+        function checkAndTriggerInit() {
+            if (isCoreInitialized) return;
 
-    let checkScriptsInterval = setInterval(() => {
-        if (typeof gapi !== 'undefined' && typeof google !== 'undefined') {
-            clearInterval(checkScriptsInterval);
-            initializeSystem();
-        }
-    }, 500);
+            const gapiReady = typeof gapi !== 'undefined';
+            const googleReady = typeof google !== 'undefined';
 
-    async function initializeSystem() {
-        try {
-            gapi.load('client', async () => {
-                try {
-                    await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
-                    state.gapiInited = true;
-                    
-                    if (gapi.client.drive) {
-                        state.driveLoaded = true;
-                        console.log("GAPI Drive 核心組件掛載成功。");
-                    } else {
-                        await gapi.client.load('drive', 'v3');
-                        state.driveLoaded = true;
+            console.log(`📡 元件狀態校對 -> GAPI 腳本: ${gapiReady ? 'OK' : '未到位'}, GIS 腳本: ${googleReady ? 'OK' : '未到位'}`);
+
+            // 當兩大 Google 核心腳本皆成功掛載於 window，立刻解鎖初始化
+            if (gapiReady && googleReady) {
+                isCoreInitialized = true;
+                initializeSystem();
+            } else {
+                // 🌟 超時保底防護：若過了載入點腳本依然失聯（如被 AdBlock 攔截），3 秒內強行噴出具體錯誤，拒絕靜默卡死！
+                setTimeout(() => {
+                    if (!isCoreInitialized) {
+                        const missing = !gapiReady ? "GAPI 腳本被阻斷" : "GIS 驗證組件被阻斷";
+                        reportInitError(missing);
                     }
-                    enableAuthButtonIfReady();
-                } catch (initErr) {
-                    console.error("GAPI 內部初始化失敗:", initErr);
+                }, 3000);
+            }
+        }
+
+        // 3. 系統初始化核心
+        async function initializeSystem() {
+            console.log("開始初始化天道流核心...");
+            try {
+                // 處理 GAPI (Google API Client) 初始化
+                if (typeof gapi !== 'undefined') {
+                    gapi.load('client', async () => {
+                        try {
+                            await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
+                            state.gapiInited = true;
+                            
+                            if (gapi.client.drive) {
+                                state.driveLoaded = true;
+                                console.log("GAPI Drive 核心組件掛載成功。");
+                            } else {
+                                await gapi.client.load('drive', 'v3');
+                                state.driveLoaded = true;
+                            }
+                            enableAuthButtonIfReady();
+                        } catch (initErr) {
+                            console.error("GAPI 內部初始化失敗:", initErr);
+                            reportInitError("GAPI 初始化失敗");
+                        }
+                    });
+                } else {
+                    reportInitError("GAPI 斷線");
                 }
-            });
 
-            state.tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: TDF_CONFIG.CLIENT_ID,
-                scope: TDF_CONFIG.SCOPES,
-                prompt: '', // 🌟 保持留空，避免覆寫引發強制彈窗地雷
-                callback: (resp) => handleAuthCallback(resp)
-            });
-            state.gisInited = true;
-            enableAuthButtonIfReady();
-        } catch (err) {
-            alert('天道系統核心初始化出錯：' + err.message);
+                // 處理 GIS (Google Identity Services) 初始化
+                if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+                    state.tokenClient = google.accounts.oauth2.initTokenClient({
+                        client_id: TDF_CONFIG.CLIENT_ID,
+                        scope: TDF_CONFIG.SCOPES,
+                        prompt: '', 
+                        callback: (resp) => handleAuthCallback(resp)
+                    });
+                    state.gisInited = true;
+                    enableAuthButtonIfReady();
+                } else {
+                    reportInitError("GIS 斷線");
+                }
+            } catch (err) {
+                console.error('天道系統核心初始化出錯：', err);
+                reportInitError("核心崩潰");
+            }
         }
-    }
 
-    function enableAuthButtonIfReady() {
-        if (state.gapiInited && state.driveLoaded && state.gisInited) {
-            const authBtn = document.getElementById('auth-btn');
-            const authBtnText = document.getElementById('auth-btn-text');
-            authBtn.disabled = false;
-            authBtn.classList.replace('bg-surface-container-highest', 'bg-primary-container');
-            authBtn.classList.replace('text-on-surface-variant', 'text-on-primary-fixed');
-            authBtnText.innerText = '登入天道流';
-
-            // 🌟 核心工程修正：初始化完成後，立即嘗試自 localStorage 讀取快取靜默登入
-            tryAutoLogin();
-        }
-    }
-
-    // 🌟 新增：環境繼承快取自動登入管線
-    async function tryAutoLogin() {
-        const savedTokenStr = localStorage.getItem('gapi_token');
-        const savedTokenTime = localStorage.getItem('gapi_token_time');
-        
-        if (savedTokenStr && savedTokenTime) {
-            const tokenResponse = JSON.parse(savedTokenStr);
-            const elapsed = Date.now() - parseInt(savedTokenTime);
+        // 4. 狀態檢查哨：解鎖登入按鈕
+        function enableAuthButtonIfReady() {
+            console.log(`狀態校對 -> GAPI: ${state.gapiInited}, Drive: ${state.driveLoaded}, GIS: ${state.gisInited}`);
             
-            // 只要在 50 分鐘的黃金安全期內，直接在背景對齊狀態，不跳出任何彈窗
-            if (elapsed < 50 * 60 * 1000) {
-                gapi.client.setToken(tokenResponse);
-                console.log("🚀 天道快取管線：成功由記憶體繼承 Token，實現 0 彈窗靜默登入。");
+            if (state.gapiInited && state.driveLoaded && state.gisInited) {
+                const authBtn = document.getElementById('auth-btn');
+                const authBtnText = document.getElementById('auth-btn-text');
+                const spinner = document.getElementById('loading-spinner');
                 
-                // 變更 UI 為已授權狀態
-                document.getElementById('auth-btn-text').innerText = '天道核心已授權(自動)';
-                document.getElementById('auth-btn').classList.replace('bg-primary-container', 'bg-surface-container-highest');
-                document.getElementById('auth-btn').classList.replace('text-on-primary-fixed', 'text-on-surface-variant');
+                // 解鎖按鈕與變更樣式
+                authBtn.disabled = false;
+                authBtn.classList.remove('cursor-not-allowed', 'bg-surface-container-highest', 'text-on-surface-variant');
+                authBtn.classList.add('cursor-pointer', 'bg-primary-container', 'text-on-primary-fixed', 'hover:opacity-90');
                 
-                await locateTargetFolder();
-                await fetchSystemConfig();
+                // 隱藏 Spinner 並更換文字
+                if (spinner) spinner.style.display = 'none';
+                authBtnText.innerText = '登入天道流稽核系統';
+
+                // 綁定點擊事件
+                authBtn.onclick = () => {
+                    if (state.tokenClient) {
+                        state.tokenClient.requestAccessToken();
+                    }
+                };
+
+                // 執行自動登入嘗試 (可選)
+                tryAutoLogin();
+            }
+        }
+
+        // 5. 異常狀況回報器
+        function reportInitError(reason) {
+            const authBtnText = document.getElementById('auth-btn-text');
+            const authBtn = document.getElementById('auth-btn');
+            const spinner = document.getElementById('loading-spinner');
+            
+            if (spinner) spinner.style.display = 'none';
+            if (authBtnText) {
+                authBtnText.innerText = `載入失敗 (${reason})`;
+            }
+            if (authBtn) {
+                authBtn.classList.replace('bg-surface-container-highest', 'bg-red-200');
+                authBtn.classList.replace('text-on-surface-variant', 'text-red-800');
+            }
+        }
+
+        // 6. 授權回呼與自動登入保底
+        function handleAuthCallback(response) {
+            if (response.error !== undefined) {
+                console.error("授權失敗:", response);
+                alert("身份驗證失敗，請重新嘗試。");
                 return;
             }
-        }
-        console.log("未檢測到有效的天道 Token 快取，等待使用者手動初始化授權。");
-    }
-
-    async function handleAuthCallback(resp) {
-        if (resp.error !== undefined) {
-            alert('Google 核心安全拒絕授權：' + resp.error);
-            throw (resp);
-        }
-        
-        if (!gapi.client.drive) {
-            alert('雲端硬碟組件仍在加載中，請稍候再試。');
-            return;
+            console.log("授權成功！Token 已取回。", response);
+            // 這裡可以導向你的主稽核功能，例如：runAuditEngine();
         }
 
-        // 🌟 新增：登入成功時，實體寫入快取
-        localStorage.setItem('gapi_token', JSON.stringify(resp));
-        localStorage.setItem('gapi_token_time', Date.now().toString());
-
-        document.getElementById('auth-btn-text').innerText = '核心校對中...';
-        await locateTargetFolder();
-        document.getElementById('auth-btn-text').innerText = '天道核心已授權';
-        document.getElementById('auth-btn').classList.replace('bg-primary-container', 'bg-surface-container-highest');
-        document.getElementById('auth-btn').classList.replace('text-on-primary-fixed', 'text-on-surface-variant');
-        
-        await fetchSystemConfig();
-    }
-
-    async function locateTargetFolder() {
-        try {
-            const response = await gapi.client.drive.files.list({
-                q: `name = '${TDF_CONFIG.FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-                fields: 'files(id, name)'
-            });
-            const folders = response.result.files;
-            if (folders && folders.length > 0) {
-                state.targetFolderId = folders[0].id;
-                console.log('特定環境路徑指定成功，ID:', state.targetFolderId);
-            } else {
-                const createResponse = await gapi.client.drive.files.create({
-                    resource: {
-                        name: TDF_CONFIG.FOLDER_NAME,
-                        mimeType: 'application/vnd.google-apps.folder'
-                    },
-                    fields: 'id'
-                });
-                state.targetFolderId = createResponse.result.id;
-                alert(`天道流專屬資料夾「${TDF_CONFIG.FOLDER_NAME}」已自動建立！請將您的檔案移入此資料夾。`);
-            }
-        } catch (err) {
-            console.error('導航鎖定特定資料夾失敗', err);
+        function tryAutoLogin() {
+            console.log("嘗試執行背景自動登入對齊...");
+            // 自動登入邏輯（如讀取 localStorage token 驗證等）
         }
-    }
-
-    async function findFileByName(filename) {
-        if (state.cachedFiles[filename]) return state.cachedFiles[filename];
-        if (!state.targetFolderId) return null;
-        
-        try {
-            const response = await gapi.client.drive.files.list({ 
-                q: `name = '${filename}' and '${state.targetFolderId}' in parents and trashed = false`,
-                fields: 'files(id, name)'
-            });
-            const files = response.result.files;
-            return (files && files.length > 0) ? (state.cachedFiles[filename] = files[0].id) : null;
-        } catch (err) { return null; }
-    }
-
-    // 🌟 修正：移除了容易誘發重複詢問的 prompt 參數，改用安全靜默提示
-    document.getElementById('auth-btn').addEventListener('click', () => {
-        if (!state.tokenClient) return alert('驗證組件尚未就緒');
-        try {
-            // 提供 hint 讓 Google 智慧對齊指定帳號，並移除 consent 阻斷
-            state.tokenClient.requestAccessToken({ hint: 'nowind.leo@gmail.com' });
-        } catch (e) {
-            alert('喚醒 Google 登入視窗失敗。');
-        }
-    });
-
-    function runAuditEngine() {
-        const auditPanel = document.getElementById('audit-alert');
-        const reasonSpan = document.getElementById('audit-reason');
-        const isShootingSelected = state.selectedAction === 'ACT_精準射擊';
-        
-        if (isShootingSelected && state.physiologicalStates.blindness) {
-            auditPanel.classList.remove('hidden');
-            reasonSpan.innerText = '右眼生理失明 [PHYS_BLIND_RIGHT_EYE]';
-        } else {
-            auditPanel.classList.add('hidden');
-        }
-    }
-
-    async function fetchSystemConfig() {
-        try {
-            const fileId = await findFileByName(TDF_CONFIG.CONFIG_FILENAME);
-            if (!fileId) return;
-            const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
-            
-            let configData = response.result;
-            if (typeof configData === 'string') {
-                configData = JSON.parse(configData);
-            }
-            
-            if (configData.characters) {
-                document.getElementById('char-select').innerHTML = configData.characters.map(c => `<option>${c}</option>`).join('');
-            }
-            if (configData.scenes) {
-                document.getElementById('scene-select').innerHTML = configData.scenes.map(s => `<option>${s}</option>`).join('');
-            }
-            console.log('設定檔動態注入成功');
-        } catch (e) {
-            console.error('載入設定檔出錯:', e);
-        }
-    }
-
-    async function saveOutline() {
-        const tokenObj = gapi.client.getToken();
-        if (!tokenObj || !tokenObj.access_token) return alert('請先完成授權登入');
-        if (!state.targetFolderId) return alert('尚未鎖定特定資料夾，拒絕傳輸。');
-        
-        const content = document.getElementById('prompt-editor').value;
-        const saveBtn = document.getElementById('save-btn');
-        
-        saveBtn.innerText = '傳輸中...';
-        saveBtn.disabled = true;
-
-        try {
-            const fileId = await findFileByName(TDF_CONFIG.OUTLINE_FILENAME);
-            const accessToken = tokenObj.access_token;
-            
-            const boundary = '===TIANDAO_MULTIPART_BOUNDARY===';
-            const delimiter = `\r\n--${boundary}\r\n`;
-            const closeDelimiter = `\r\n--${boundary}--`;
-            
-            let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-            let method = 'POST';
-            
-            const metadata = {
-                name: TDF_CONFIG.OUTLINE_FILENAME,
-                mimeType: 'text/plain'
-            };
-            
-            if (fileId) {
-                url = `https://
+    </script>
+</body>
+</html>
