@@ -71,6 +71,9 @@
             <span class="material-symbols-outlined text-[16px]">account_circle</span>
             <span id="auth-btn-text">LOGIN</span>
         </button>
+        <button id="logout-btn" class="hidden text-on-surface-variant hover:bg-surface-container-high p-1.5 rounded transition-colors" title="登出">
+            <span class="material-symbols-outlined text-[20px]">logout</span>
+        </button>
     </div>
 </header>
 
@@ -112,7 +115,7 @@
     const state = {
         tokenClient: null, gapiInited: false, gisInited: false,
         driveIds: { root: null },
-        config: null, // 動態載入的配置檔
+        config: null,
         moduleData: {}, 
         outlineData: {
             chapter: '001', version: 'V1.0', coreEvent: '',
@@ -128,12 +131,58 @@
     async function initializeGapiClient() {
         await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
         state.gapiInited = true;
+        attemptAutoLogin();
     }
     function gisLoaded() {
         state.tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: TDF_CONFIG.CLIENT_ID, scope: TDF_CONFIG.SCOPES, callback: '',
+            client_id: TDF_CONFIG.CLIENT_ID, scope: TDF_CONFIG.SCOPES, callback: handleTokenResponse,
         });
         state.gisInited = true;
+        attemptAutoLogin();
+    }
+
+    // --- Session Management (F5 Fix) ---
+    function handleTokenResponse(resp) {
+        if (resp.error !== undefined) throw (resp);
+        localStorage.setItem('tdf_access_token', resp.access_token);
+        performPostLoginActions();
+    }
+
+    function attemptAutoLogin() {
+        if (state.gapiInited && state.gisInited) {
+            const savedToken = localStorage.getItem('tdf_access_token');
+            if (savedToken) {
+                gapi.client.setToken({ access_token: savedToken });
+                performPostLoginActions();
+            }
+        }
+    }
+
+    async function performPostLoginActions() {
+        document.getElementById('auth-btn-text').innerText = 'AGENT_AUTH';
+        document.getElementById('auth-btn').classList.replace('bg-primary-container', 'bg-surface-container-highest');
+        document.getElementById('logout-btn').classList.remove('hidden');
+        
+        document.getElementById('mask-status').innerText = 'LOCATING_WORKSPACE...';
+        state.driveIds.root = await DriveAPI.findId(TDF_CONFIG.WORKSPACE_ROOT, null, true);
+        if (!state.driveIds.root) {
+            const res = await DriveAPI.createFolder(TDF_CONFIG.WORKSPACE_ROOT, null);
+            state.driveIds.root = res.id;
+        }
+
+        document.getElementById('mask-status').innerText = 'CHECKING_CONFIG...';
+        const configId = await DriveAPI.findId(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, false);
+        if (configId) {
+            const content = await DriveAPI.getFileContent(configId);
+            state.config = JSON.parse(content);
+            state.isInitialized = true;
+            document.getElementById('mask-status').innerText = 'LOADING_MODULES...';
+            await ModuleLoader.loadAll();
+        }
+        
+        document.getElementById('secure-mask').classList.add('hidden-mask');
+        document.getElementById('main-app-content').classList.add('unlocked');
+        renderCurrentView();
     }
 
     // --- Drive API Wrapper ---
@@ -702,38 +751,18 @@
     // --- Event Listeners & Init ---
     document.getElementById('auth-btn').addEventListener('click', () => {
         if (!state.tokenClient) return;
-        state.tokenClient.callback = async (resp) => {
-            if (resp.error) throw resp;
-            document.getElementById('auth-btn-text').innerText = 'AGENT_AUTH';
-            document.getElementById('auth-btn').classList.replace('bg-primary-container', 'bg-surface-container-highest');
-            
-            document.getElementById('mask-status').innerText = 'LOCATING_WORKSPACE...';
-            state.driveIds.root = await DriveAPI.findId(TDF_CONFIG.WORKSPACE_ROOT, null, true);
-            if (!state.driveIds.root) {
-                const res = await DriveAPI.createFolder(TDF_CONFIG.WORKSPACE_ROOT, null);
-                state.driveIds.root = res.id;
-            }
-
-            document.getElementById('mask-status').innerText = 'CHECKING_CONFIG...';
-            const configId = await DriveAPI.findId(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, false);
-            if (configId) {
-                const content = await DriveAPI.getFileContent(configId);
-                state.config = JSON.parse(content);
-                state.isInitialized = true;
-                document.getElementById('mask-status').innerText = 'LOADING_MODULES...';
-                await ModuleLoader.loadAll();
-            }
-            
-            document.getElementById('secure-mask').classList.add('hidden-mask');
-            document.getElementById('main-app-content').classList.add('unlocked');
-            renderCurrentView();
-        };
-
-        if (gapi.client.getToken() === null) {
-            state.tokenClient.requestAccessToken({ prompt: 'consent' });
-        } else {
-            state.tokenClient.requestAccessToken({ prompt: '' });
+        // 如果已經有 token，直接執行後續動作
+        if (gapi.client.getToken()) {
+            performPostLoginActions();
+            return;
         }
+        state.tokenClient.requestAccessToken({prompt: 'consent'});
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', () => {
+        localStorage.removeItem('tdf_access_token');
+        gapi.client.setToken(null);
+        location.reload();
     });
 
     document.querySelectorAll('.nav-btn').forEach(btn => {
