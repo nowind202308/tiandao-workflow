@@ -1,120 +1,414 @@
 <!DOCTYPE html>
-<html lang="zh-Hant" class="dark">
+<html class="dark" lang="zh-TW">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>天道流：大綱中央控制台</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script async defer src="https://accounts.google.com/gsi/client"></script>
-  <script async defer src="https://apis.google.com/js/api.js"></script>
-  <style>
-    body { background-color: #0d1515; color: #00f2ff; font-family: 'JetBrains Mono', monospace; }
-    .auth-only { display: none; } /* 登入後才會移除此類別 */
-  </style>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+    <title>...</title>
+    
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    
+    <script async defer src="https://accounts.google.com/gsi/client"></script>
+    <script async defer src="https://apis.google.com/js/api.js"></script>
+    
+    <style>
+        .glass-panel { background: rgba(21, 29, 30, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(132, 148, 149, 0.1); }
+        .scanline { width: 100%; height: 2px; background: rgba(0, 219, 231, 0.05); position: absolute; top: 0; animation: scan 8s linear infinite; z-index: 10; pointer-events: none; }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+        .cyan-glow { box-shadow: 0 0 15px rgba(0, 219, 231, 0.15); }
+        .active-nav-item { color: #00f2ff; border-top: 2px solid #00f2ff; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #080f10; }
+        ::-webkit-scrollbar-thumb { background: #3a494b; border-radius: 2px; }
+        
+        #main-app-content { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+        #main-app-content.unlocked { opacity: 1; pointer-events: auto; }
+        .secure-mask { position: fixed; inset: 0; background: #080f10; z-index: 40; display: flex; align-items: center; justify-content: center; color: #00dbe7; font-family: 'JetBrains Mono', monospace; font-size: 12px; transition: opacity 0.5s ease; }
+        .secure-mask.hidden-mask { opacity: 0; pointer-events: none; }
+    </style>
+
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: { colors: {
+                "on-primary-fixed": "#002022", "surface-container-low": "#151d1e", "inverse-on-surface": "#2a3232",
+                "on-primary-container": "#006a71", "surface-tint": "#00dbe7", "secondary-fixed": "#e5e2e1",
+                "primary-fixed": "#74f5ff", "surface-container-lowest": "#080f10", "on-secondary-container": "#bab8b7",
+                "surface": "#0d1515", "error-container": "#93000a", "surface-container-highest": "#2e3637",
+                "surface-dim": "#0d1515", "inverse-primary": "#00696f", "on-secondary": "#313030",
+                "primary-fixed-dim": "#00dbe7", "on-tertiary-fixed": "#291800", "on-surface-variant": "#b9cacb",
+                "on-tertiary": "#452b00", "tertiary-container": "#ffd49d", "on-surface": "#dce4e4",
+                "on-error-container": "#ffdad6", "tertiary": "#fff6ef", "surface-container": "#192122",
+                "background": "#0d1515", "on-primary": "#00363a", "on-primary-fixed-variant": "#004f54",
+                "on-error": "#690005", "error": "#ffb4ab", "on-secondary-fixed": "#1c1b1b",
+                "on-tertiary-container": "#845600", "surface-container-high": "#232b2c", "secondary": "#c9c6c5",
+                "on-tertiary-fixed-variant": "#633f00", "secondary-container": "#4a4949", "primary": "#e1fdff",
+                "tertiary-fixed": "#ffddb4", "on-secondary-fixed-variant": "#474646", "tertiary-fixed-dim": "#ffb952",
+                "on-background": "#dce4e4", "surface-bright": "#333b3b", "primary-container": "#00f2ff",
+                "secondary-fixed-dim": "#c9c6c5", "inverse-surface": "#dce4e4", "outline-variant": "#3a494b",
+                "outline": "#849495", "surface-variant": "#2e3637"
+            }, spacing: { "gutter": "16px" }, fontFamily: { "body-lg": ["Inter"], "label-caps": ["JetBrains Mono"], "data-md": ["JetBrains Mono"] } } }
+        };
+    </script>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-center p-4">
+<body class="bg-background text-on-surface font-body-lg overflow-hidden h-screen flex flex-col">
 
-  <!-- 初始極簡介面 -->
-  <div id="initial-screen" class="text-center space-y-6">
-    <h1 class="text-xl font-bold tracking-widest neon-text">TDC V5.0.4 :: SYSTEM_LOCKED</h1>
-    <button id="auth-btn" class="border border-[#00f2ff] px-8 py-3 hover:bg-[#00f2ff] hover:text-[#0d1515] transition-all">
-      授權登入 (INITIALIZE)
-    </button>
-  </div>
+<div id="secure-mask" class="secure-mask">SYSTEM_LOCKED :: WAITING_FOR_AUTH</div>
 
-  <!-- 登入後才會顯示的主控台 (隱藏初始狀態) -->
-  <div id="main-app-content" class="auth-only w-full max-w-md space-y-6">
-    <header class="border-b border-[#2a3a3a] pb-4 flex justify-between items-center">
-      <h1 class="text-sm font-bold tracking-wider" data-i18n="app_title">---</h1>
-      <button onclick="location.reload()" class="text-xs text-gray-500 underline">重置系統</button>
-    </header>
-
-    <div class="space-y-4">
-      <label class="block text-[10px] text-gray-400 uppercase" data-i18n="char_label">---</label>
-      <select id="char-select" class="w-full bg-[#1a2626] border border-[#2a3a3a] p-3 text-sm"></select>
-      
-      <label class="block text-[10px] text-gray-400 uppercase" data-i18n="action_label">---</label>
-      <select id="action-select" class="w-full bg-[#1a2626] border border-[#2a3a3a] p-3 text-sm"></select>
-      
-      <textarea id="prompt-editor" class="w-full h-32 bg-[#1a2626] border border-[#2a3a3a] p-3 text-sm" placeholder="等待指令..."></textarea>
-      
-      <button id="inject-btn" class="w-full bg-[#00f2ff] text-[#0d1515] py-3 font-bold text-sm">注入指令</button>
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
+    <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none" data-i18n="app_title">---</h1>
     </div>
-  </div>
+    <div class="flex items-center gap-3">
+        <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
+            <span class="material-symbols-outlined text-[16px]">account_circle</span>
+            <span id="auth-btn-text" data-i18n="login_btn">---</span>
+        </button>
+        <button class="text-on-surface-variant hover:bg-surface-container-high p-1.5 rounded transition-colors" id="status-toggle">
+            <span class="material-symbols-outlined text-[20px]">analytics</span>
+        </button>
+    </div>
+</header>
 
-  <script>
+<div id="main-app-content" class="flex-1 mt-14 mb-16 overflow-y-auto relative flex flex-col hide-scrollbar">
+    <div class="scanline"></div>
+    <div class="px-gutter py-4 bg-surface-container-low border-b border-outline-variant">
+        <div class="flex justify-between items-end">
+            <div>
+                <h2 class="font-label-caps text-[9px] text-on-surface-variant uppercase mb-1" data-i18n="module_label">---</h2>
+                <div class="font-label-caps text-sm font-bold text-primary-fixed-dim leading-tight" data-i18n="project_title">---</div>
+            </div>
+            <div class="text-right">
+                <div class="font-data-md text-[10px] text-on-tertiary-container opacity-70" data-i18n="version_info">---</div>
+                <div class="font-data-md text-[10px] text-primary-fixed-dim" data-i18n="env_info">---</div>
+            </div>
+        </div>
+    </div>
+
+    <main class="flex-1 bg-surface-dim flex flex-col">
+        <div class="p-gutter grid grid-cols-1 gap-4 bg-surface-container-lowest/30 border-b border-outline-variant">
+            <div class="space-y-1">
+                <label class="font-label-caps text-[10px] text-on-surface-variant" data-i18n="char_label">---</label>
+                <div class="relative">
+                    <select class="w-full bg-surface-container-high border border-outline text-on-surface px-3 py-2.5 rounded-sm appearance-none font-data-md text-sm" id="char-select"></select>
+                    <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+                </div>
+            </div>
+            <div class="space-y-1">
+                <label class="font-label-caps text-[10px] text-on-surface-variant" data-i18n="scene_label">---</label>
+                <div class="relative">
+                    <select class="w-full bg-surface-container-high border border-outline text-on-surface px-3 py-2.5 rounded-sm appearance-none font-data-md text-sm" id="scene-select"></select>
+                    <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-gutter space-y-4">
+            <h3 class="font-label-caps text-[10px] text-on-surface-variant border-l-2 border-primary-container pl-2" data-i18n="action_label">---</h3>
+            <div class="grid grid-cols-1 gap-3" id="action-list"></div>
+            
+            <div class="hidden mt-2 border-2 border-error-container bg-error-container/5 p-4 rounded-sm relative" id="audit-alert">
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-error-container/20 p-2 rounded">
+                            <span class="material-symbols-outlined text-error text-[24px]">warning</span>
+                        </div>
+                        <div>
+                            <div class="font-data-md text-error font-bold" id="audit-action-target">---</div>
+                            <div class="font-label-caps text-[8px] text-error/60 uppercase">Warning State</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-3 bg-error-container text-[12px] font-data-md leading-relaxed text-on-error-container rounded-sm mb-2">
+                    <span class="font-bold underline" data-i18n="audit_alert_title">---</span><br/>
+                    BLOCKED BY: [<span id="audit-reason">---</span>]
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 border-t border-outline-variant bg-surface-container-lowest flex flex-col">
+            <div class="flex items-center justify-between px-gutter py-3 bg-surface-container-low border-b border-outline-variant">
+                <span class="font-label-caps text-[10px] text-on-surface-variant flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[16px]">edit_note</span>
+                    <span data-i18n="prompt_label">---</span>
+                </span>
+                <span class="font-data-md text-[10px] text-outline">UTF-8</span>
+            </div>
+            <textarea class="min-h-[180px] max-h-[300px] p-gutter font-data-md text-sm text-on-surface selection:bg-primary-container/30 bg-black/20 border-none focus:ring-0 resize-none" id="prompt-editor" placeholder="等待資料同步..."></textarea>
+            <div class="p-3 grid grid-cols-2 gap-2 border-t border-outline-variant bg-surface-container-low">
+                <button class="bg-surface-container-highest text-on-surface py-3 rounded-sm font-label-caps text-[11px] border border-outline-variant active:bg-surface-bright transition-all disabled:opacity-50" id="save-btn" data-i18n="save_btn">---</button>
+                <button class="bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-[11px] flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow">
+                    <span class="material-symbols-outlined text-[16px]">terminal</span>
+                    <span data-i18n="inject_btn">---</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="hidden border-t border-outline-variant bg-surface-container-lowest p-gutter space-y-6" id="status-panel">
+            <div class="flex justify-between items-center">
+                <h2 class="font-label-caps text-[11px] text-tertiary uppercase" data-i18n="status_log_title">---</h2>
+                <button class="text-on-surface-variant" id="close-status"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="space-y-3">
+                <h3 class="font-label-caps text-[10px] text-outline border-b border-outline-variant pb-1" data-i18n="status_chapter_states">---</h3>
+                <div class="grid grid-cols-1 gap-2">
+                    <div class="p-3 bg-surface-container-high flex justify-between items-center rounded-sm border-l-2 border-tertiary-fixed-dim">
+                        <span class="font-data-md text-sm text-on-surface" data-i18n="status_blood_loss">---</span>
+                        <span class="font-data-md text-sm text-error" id="state-blood-loss">---</span>
+                    </div>
+                    <div class="p-3 bg-surface-container-high flex justify-between items-center rounded-sm border-l-2 border-primary-container">
+                        <span class="font-data-md text-sm text-on-surface" data-i18n="status_ttl">---</span>
+                        <span class="font-data-md text-sm text-primary-fixed-dim" id="state-ttl">---</span>
+                    </div>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <h3 class="font-label-caps text-[10px] text-outline border-b border-outline-variant pb-1" data-i18n="status_attr">---</h3>
+                <div class="text-[12px] font-data-md text-on-surface-variant leading-relaxed grid grid-cols-2 gap-2 bg-surface-container-low p-3 rounded">
+                    <div id="attr-pos">[POS_SYNCING]</div>
+                    <div id="attr-time">[T_SYNCING]</div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 gap-2 pb-6">
+                <button class="w-full bg-surface-container-high text-tertiary-fixed-dim font-data-md text-sm py-3 border border-outline-variant flex items-center justify-center gap-2 active:bg-surface-bright disabled:opacity-50" id="sync-btn">
+                    <span class="material-symbols-outlined text-[18px]">sync</span> <span data-i18n="sync_btn">---</span>
+                </button>
+                <button class="w-full bg-surface-container-high text-on-surface-variant font-data-md text-sm py-3 border border-outline-variant flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">ios_share</span> <span data-i18n="export_btn">---</span>
+                </button>
+            </div>
+        </div>
+    </main>
+</div>
+
+<nav class="fixed bottom-0 w-full h-16 bg-surface-container border-t border-outline-variant flex items-center justify-around px-2 z-50">
+    <button class="flex flex-col items-center gap-1 active-nav-item pt-2 pb-1 px-3">
+        <span class="material-symbols-outlined text-[22px]">settings_input_component</span>
+        <span class="font-label-caps text-[9px] uppercase" data-i18n="nav_sys">---</span>
+    </button>
+    <button class="flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3">
+        <span class="material-symbols-outlined text-[22px]">person_search</span>
+        <span class="font-label-caps text-[9px] uppercase" data-i18n="nav_char">---</span>
+    </button>
+    <button class="flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3">
+        <span class="material-symbols-outlined text-[22px]">bolt</span>
+        <span class="font-label-caps text-[9px] uppercase" data-i18n="nav_act">---</span>
+    </button>
+    <button class="flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3">
+        <span class="material-symbols-outlined text-[22px]">palette</span>
+        <span class="font-label-caps text-[9px] uppercase" data-i18n="nav_env">---</span>
+    </button>
+    <button class="flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3" id="bio-nav-btn">
+        <span class="material-symbols-outlined text-[22px]">health_and_safety</span>
+        <span class="font-label-caps text-[9px] uppercase" data-i18n="nav_bio">---</span>
+    </button>
+</nav>
+
+<script>
     const TDF_CONFIG = {
         CLIENT_ID: '113481234677-vhtkocf6nsp7pm47figsdgm6vsdqlrea.apps.googleusercontent.com', 
         SCOPES: 'https://www.googleapis.com/auth/drive',
+        DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
         WORKSPACE_ROOT: 'TianDao_Workspace',
-        TARGET_FILE: 'config.json'
+        TARGET_FILE: 'config.json',
+        OUTLINE_FILENAME: 'CHAPTER_001_OUTLINE.txt',
+        SUMMARY_FILENAME: 'CHAPTER_001_SUMMARY.txt'
     };
 
-    // 授權登入後才執行的主流程
-    async function onAuthSuccess() {
-        document.getElementById('initial-screen').style.display = 'none';
-        document.getElementById('main-app-content').classList.remove('auth-only');
-        await fetchSystemConfig();
+    const state = {
+        tokenClient: null, gapiInited: false, gisInited: false, selectedAction: null,
+        physiologicalStates: { blindness: true }, uiData: null
+    };
+
+    function gapiLoaded() { gapi.load('client', initializeGapiClient); }
+    async function initializeGapiClient() {
+        await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
+        state.gapiInited = true;
+    }
+    function gisLoaded() {
+        state.tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: TDF_CONFIG.CLIENT_ID,
+            scope: TDF_CONFIG.SCOPES,
+            callback: '', 
+        });
+        state.gisInited = true;
+    }
+
+    async function getDriveIdByName(name, parentId = null, isFolder = true) {
+        const mimeType = isFolder ? "mimeType = 'application/vnd.google-apps.folder'" : "mimeType != 'application/vnd.google-apps.folder'";
+        let q = `name = '${name}' and ${mimeType} and trashed = false`;
+        if (parentId) q += ` and '${parentId}' in parents`;
+
+        const resp = await gapi.client.drive.files.list({ q: q, fields: 'files(id, name)' });
+        if (resp.result.files.length > 0) {
+            console.log(`[Drive API] 尋獲 ${isFolder ? '目錄' : '檔案'}: ${name} (ID: ${resp.result.files[0].id})`);
+            return resp.result.files[0].id;
+        } else {
+            return null;
+        }
     }
 
     async function fetchSystemConfig() {
-        // ... (這裡放置您之前修正過的目錄尋訪邏輯與渲染邏輯)
-        // 核心目標是透過 fetchSystemConfig() 將文字填充到 data-i18n 屬性的欄位
-        console.log("資料已載入，介面更新完成。");
+        try {
+            document.getElementById('secure-mask').innerText = 'LOCATING_WORKSPACE...';
+            const rootId = await getDriveIdByName(TDF_CONFIG.WORKSPACE_ROOT, null, true);
+            if (!rootId) throw new Error(`找不到根目錄：${TDF_CONFIG.WORKSPACE_ROOT}`);
+
+            document.getElementById('secure-mask').innerText = 'ACCESSING_CENTRAL_CORE...';
+            const coreId = await getDriveIdByName('01_CENTRAL_CORE', rootId, true);
+            const sysId = await getDriveIdByName('00_SYSTEM', coreId, true);
+            
+            const fileId = await getDriveIdByName(TDF_CONFIG.TARGET_FILE, sysId, false);
+            if (!fileId) throw new Error(`找不到配置檔：${TDF_CONFIG.TARGET_FILE}`);
+
+            document.getElementById('secure-mask').innerText = 'DOWNLOADING_DATA...';
+            const response = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
+            
+            // 嘗試解析 JSON，捕捉格式錯誤
+            let configData;
+            try {
+                configData = JSON.parse(response.body);
+            } catch (jsonErr) {
+                throw new Error("config.json 格式錯誤，並非有效的 JSON");
+            }
+            
+            state.uiData = configData;
+            renderUI(configData);
+            
+            document.getElementById('secure-mask').classList.add('hidden-mask');
+            document.getElementById('main-app-content').classList.add('unlocked');
+            
+        } catch (e) {
+            console.error('核心資料載入失敗', e);
+            document.getElementById('secure-mask').innerText = 'ERROR: ' + e.message;
+        }
     }
 
-    // 登入按鈕綁定
-    document.getElementById('auth-btn').addEventListener('click', () => {
-        const client = google.accounts.oauth2.initTokenClient({
-            client_id: TDF_CONFIG.CLIENT_ID,
-            scope: TDF_CONFIG.SCOPES,
-            callback: (resp) => { if(!resp.error) onAuthSuccess(); }
-        });
-        client.requestAccessToken();
-    });
-
+    // --- 強化版 UI 渲染引擎 (包含防呆機制) ---
     function renderUI(config) {
         if (!config) return;
 
-        // 直接鎖定 ID 進行填充，不再依賴屬性掃描
-        if (config.ui) {
-            const titleEl = document.querySelector('h1[data-i18n="app_title"]');
-            if (titleEl) titleEl.innerText = config.ui.app_title;
-            
-            const moduleLabel = document.querySelector('[data-i18n="module_label"]');
-            if (moduleLabel) moduleLabel.innerText = config.ui.module_label;
-            
-            const projectTitle = document.querySelector('[data-i18n="project_title"]');
-            if (projectTitle) projectTitle.innerText = config.ui.project_title;
+        // 1. 注入 i18n 文字 (使用 ?. 防禦)
+        if (config?.ui) {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (config.ui[key]) {
+                    el.innerText = config.ui[key];
+                    if(el.tagName === 'TITLE') document.title = config.ui[key];
+                }
+            });
         }
 
-        // 填充下拉選單
-        if (config.modules?.characters) {
-            document.getElementById('char-select').innerHTML = config.modules.characters
-                .map(c => typeof c === 'string' ? `<option value="${c}">${c}</option>` : `<option value="${c.id}">${c.name}</option>`)
-                .join('');
+        // 2. 注入下拉選單 (使用 ?. 防禦)
+        if (config?.modules?.characters && Array.isArray(config.modules.characters)) {
+            document.getElementById('char-select').innerHTML = config.modules.characters.map(c => `<option>${c}</option>`).join('');
         }
         
-        if (config.modules?.scenes) {
-            document.getElementById('scene-select').innerHTML = config.modules.scenes
-                .map(s => typeof s === 'string' ? `<option value="${s}">${s}</option>` : `<option value="${s.id}">${s.name}</option>`)
-                .join('');
+        if (config?.modules?.scenes && Array.isArray(config.modules.scenes)) {
+            document.getElementById('scene-select').innerHTML = config.modules.scenes.map(s => `<option>${s}</option>`).join('');
         }
 
-        // 重新渲染動作清單
-        if (config.modules?.actions) {
-            const actionSelect = document.getElementById('action-select');
-            actionSelect.innerHTML = config.modules.actions.map(act => `<option value="${act.id}">${act.name}</option>`).join('');
+        // 3. 注入動作模組卡片 (使用 ?. 防禦)
+        const actionList = document.getElementById('action-list');
+        actionList.innerHTML = '';
+        if (config?.modules?.actions && Array.isArray(config.modules.actions)) {
+            config.modules.actions.forEach((act, index) => {
+                if (index === 0) state.selectedAction = act.id; 
+                
+                const card = document.createElement('div');
+                card.className = "action-card glass-panel p-4 rounded-sm transition-colors flex items-center gap-4 cursor-pointer";
+                if(index === 0) card.classList.add('ring-2', 'ring-primary-container', 'bg-surface-container-highest');
+                card.setAttribute('data-id', act.id || 'unknown');
+                card.innerHTML = `
+                    <div class="bg-surface-container-highest p-2 rounded">
+                        <span class="material-symbols-outlined text-primary-fixed-dim text-[24px]">${act.icon || 'bolt'}</span>
+                    </div>
+                    <div class="flex-1">
+                        <div class="font-data-md text-on-surface">${act.name || '未命名動作'}</div>
+                        <div class="font-label-caps text-[8px] text-outline uppercase">${act.version || 'v1.0'}</div>
+                    </div>
+                    <span class="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
+                `;
+                
+                card.addEventListener('click', function() {
+                    document.querySelectorAll('.action-card').forEach(c => c.classList.remove('ring-2', 'ring-primary-container', 'bg-surface-container-highest'));
+                    this.classList.add('ring-2', 'ring-primary-container', 'bg-surface-container-highest');
+                    state.selectedAction = this.getAttribute('data-id');
+                    runAuditEngine();
+                });
+                actionList.appendChild(card);
+            });
+        } else {
+            actionList.innerHTML = '<div class="p-4 text-center text-on-surface-variant font-data-md text-[12px] glass-panel">讀取不到動作模組，請檢查 config.json</div>';
         }
 
-        console.log("介面已強制刷新，檢查 DOM 填充狀態");
+        // 4. 預設 Prompt
+        if (config?.default_prompt) {
+            document.getElementById('prompt-editor').value = config.default_prompt;
+        } else {
+            document.getElementById('prompt-editor').value = "// 讀取不到預設提示詞...";
+        }
+
+        runAuditEngine();
     }
 
-    // API 載入檢查
-    function checkApiReady() {
-        if (typeof gapi !== 'undefined' && typeof google !== 'undefined') return true;
-        return false;
+    function runAuditEngine() {
+        if(!state.uiData) return;
+        const auditPanel = document.getElementById('audit-alert');
+        const reasonSpan = document.getElementById('audit-reason');
+        const targetSpan = document.getElementById('audit-action-target');
+        const promptText = document.getElementById('prompt-editor').value || '';
+
+        const isShootingSelected = state.selectedAction === 'ACT_精準射擊';
+        const hasBlindness = state.physiologicalStates.blindness;
+        
+        const hasBlockedTagInText = promptText.includes('[PHYS_BLIND_RIGHT_EYE]');
+        const blockedByRegex = /BLOCKED_BY:\s*([^\]\r\n]+)/i;
+        const match = promptText.match(blockedByRegex);
+
+        if (isShootingSelected && (hasBlindness || hasBlockedTagInText || match)) {
+            auditPanel.classList.remove('hidden');
+            targetSpan.innerText = state.selectedAction;
+            reasonSpan.innerText = match ? match[1].trim() : '右眼生理失明 [PHYS_BLIND_RIGHT_EYE]';
+        } else {
+            auditPanel.classList.add('hidden');
+        }
     }
-  </script>
+
+    document.getElementById('auth-btn').addEventListener('click', () => {
+        if (!state.tokenClient) return;
+        
+        state.tokenClient.callback = async (resp) => {
+            if (resp.error !== undefined) throw (resp);
+            document.getElementById('auth-btn-text').innerText = 'AGENT_AUTH';
+            document.getElementById('auth-btn').classList.replace('bg-primary-container', 'bg-surface-container-highest');
+            await fetchSystemConfig();
+        };
+
+        if (gapi.client.getToken() === null) {
+            state.tokenClient.requestAccessToken({prompt: 'consent'});
+        } else {
+            state.tokenClient.requestAccessToken({prompt: ''});
+        }
+    });
+
+    const statusBtn = document.getElementById('status-toggle');
+    const closeStatusBtn = document.getElementById('close-status');
+    const statusPanel = document.getElementById('status-panel');
+    statusBtn.addEventListener('click', () => {
+        statusPanel.classList.toggle('hidden');
+        if (!statusPanel.classList.contains('hidden')) statusPanel.scrollIntoView({ behavior: 'smooth' });
+    });
+    closeStatusBtn.addEventListener('click', () => statusPanel.classList.add('hidden'));
+
+    document.getElementById('bio-nav-btn').addEventListener('click', () => {
+        state.physiologicalStates.blindness = !state.physiologicalStates.blindness;
+        runAuditEngine();
+    });
+    document.getElementById('prompt-editor').addEventListener('input', runAuditEngine);
+
+    window.onload = () => { gapiLoaded(); gisLoaded(); };
+</script>
 </body>
 </html>
