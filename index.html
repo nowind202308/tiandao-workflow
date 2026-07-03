@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
-    <title>TianDao Flow Controller</title>
+    <title>Project Controller</title>
     
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
@@ -64,7 +64,7 @@
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">TianDao Flow Controller</h1>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller</h1>
     </div>
     <div class="flex items-center gap-3">
         <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -106,25 +106,13 @@
         SCOPES: 'https://www.googleapis.com/auth/drive',
         DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
         WORKSPACE_ROOT: 'TianDao_Workspace',
-        CORE_PATH: '01_CENTRAL_CORE'
+        CONFIG_FILE: 'TianDao_Config.json'
     };
-
-    const MOD_CATEGORIES = [
-        { key: "System", path: "00_SYSTEM", label: "AI提示詞" },
-        { key: "Chars", path: "01_CHARACTERS", label: "人物" },
-        { key: "Scenes", path: "02_SCENES", label: "場景" },
-        { key: "Actions", path: "03_ACTIONS", label: "行為" },
-        { key: "Speech", path: "04_SPEECH", label: "常用語" },
-        { key: "Clothing", path: "05_CLOTHING", label: "服裝" },
-        { key: "Items", path: "06_ITEMS", label: "道具" },
-        { key: "Physical", path: "07_PHYSICAL", label: "身體狀態" },
-        { key: "Mental", path: "08_MENTAL", label: "精神狀態" },
-        { key: "DID", path: "09_DID_SYSTEM", label: "多重人格" }
-    ];
 
     const state = {
         tokenClient: null, gapiInited: false, gisInited: false,
-        driveIds: { root: null, core: null },
+        driveIds: { root: null },
+        config: null, // 動態載入的配置檔
         moduleData: {}, 
         outlineData: {
             chapter: '001', version: 'V1.0', coreEvent: '',
@@ -202,28 +190,40 @@
     const ModuleLoader = {
         parseModule(content, filename) {
             const codeMatch = content.match(/^\s*\[([A-Za-z0-9_]+)\]\s*/m);
-            const code = codeMatch ? codeMatch[1] : filename.replace('.txt', '');
+            const code = codeMatch ? codeMatch[1] : filename.replace(/\.(txt|ahk)$/, '');
             const extractField = (fieldName) => {
                 const regex = new RegExp(`^\\s*${fieldName}\\s*[:：]\\s*(.*?)(?=\\r?\\n\\s*[A-Z_]+\\s*[:：]|\\r?\\n\\s*\\[|\\Z)`, 'ms');
                 const match = content.match(regex);
                 return match ? match[1].trim() : '';
             };
             return {
-                code, name: extractField('NAME') || filename.replace('.txt', ''),
-                description: extractField('DESCRIPTION'), weight: parseFloat(extractField('WEIGHT')) || 0.5,
-                blockedBy: extractField('BLOCKED_BY'), alternatives: extractField('ALTERNATIVES'),
+                code, name: extractField('NAME') || code,
+                description: extractField('DESCRIPTION') || extractField('EFFECT') || extractField('CORE_CONCEPT'),
+                weight: parseFloat(extractField('WEIGHT')) || 0.5,
+                blockedBy: extractField('BLOCKED_BY') || extractField('BLOCKED_ACTIONS'),
+                alternatives: extractField('ALTERNATIVES'),
                 duration: extractField('DURATION_TTL') || extractField('DURATION'), rawContent: content
             };
         },
         async loadAll() {
-            const coreId = state.driveIds.core;
-            if (!coreId) return;
+            if (!state.config || !state.driveIds.root) return;
             state.moduleData = {};
-            for (const cat of MOD_CATEGORIES) {
-                const catId = await DriveAPI.findId(cat.path, coreId, true);
-                if (!catId) continue;
-                const files = await DriveAPI.listFiles(catId);
+            
+            for (const cat of state.config.categories) {
+                let currentParentId = state.driveIds.root;
+                let validPath = true;
+                
+                for (const folderName of cat.path) {
+                    const id = await DriveAPI.findId(folderName, currentParentId, true);
+                    if (!id) { validPath = false; break; }
+                    currentParentId = id;
+                }
+
+                if (!validPath) continue;
+
+                const files = await DriveAPI.listFiles(currentParentId);
                 state.moduleData[cat.key] = [];
+                
                 for (const file of files) {
                     if (file.name.endsWith('.txt') && file.name !== 'README.txt') {
                         try {
@@ -240,95 +240,37 @@
     };
 
     // --- Environment Setup ---
-    const EnvSetup = {
-        async initialize() {
-            const mask = document.getElementById('mask-status');
-            mask.innerText = 'CREATING_ROOT...';
-            let rootId = await DriveAPI.findId(TDF_CONFIG.WORKSPACE_ROOT, null, true);
-            if (!rootId) {
-                const res = await DriveAPI.createFolder(TDF_CONFIG.WORKSPACE_ROOT, null);
-                rootId = res.id;
-            }
-            state.driveIds.root = rootId;
-
-            mask.innerText = 'CREATING_CORE...';
-            let coreId = await DriveAPI.findId(TDF_CONFIG.CORE_PATH, rootId, true);
-            if (!coreId) {
-                const res = await DriveAPI.createFolder(TDF_CONFIG.CORE_PATH, rootId);
-                coreId = res.id;
-            }
-            state.driveIds.core = coreId;
-
-            for (const cat of MOD_CATEGORIES) {
-                mask.innerText = `SYNCING ${cat.label}...`;
-                let catId = await DriveAPI.findId(cat.path, coreId, true);
-                if (!catId) {
-                    await DriveAPI.createFolder(cat.path, coreId);
+    async function initializeEnvironment() {
+        const mask = document.getElementById('mask-status');
+        mask.innerText = 'INITIALIZING_STRUCTURE...';
+        
+        const createStructure = async (node, parentId) => {
+            for (const [key, value] of Object.entries(node)) {
+                mask.innerText = `SYNCING ${key}...`;
+                let currentId = await DriveAPI.findId(key, parentId, true);
+                if (!currentId) {
+                    const res = await DriveAPI.createFolder(key, parentId);
+                    currentId = res.id;
                 }
-            }
-            
-            // Create minimal example files
-            const sysId = await DriveAPI.findId('00_SYSTEM', coreId, true);
-            if (sysId && !(await DriveAPI.findId('00_SYSTEM_RULES.txt', sysId, false))) {
-                await DriveAPI.createFile('00_SYSTEM_RULES.txt', sysId, `[SYSTEM_RULES_TIAN_DAO]\n// 天道流最高指導原則\n【源頭阻斷】：若大綱動作與模組的 [BLOCKED_BY] 衝突，必須自動觸發源頭阻斷。\n【雙軌生成】：每次回覆必須包含文學軌與視覺軌 (<sd_prompt>)。`);
-            }
-
-            const charId = await DriveAPI.findId('01_CHARACTERS', coreId, true);
-            if (charId && !(await DriveAPI.findId('CHAR_YEC_BASE.txt', charId, false))) {
-                await DriveAPI.createFile('CHAR_YEC_BASE.txt', charId, `[CHAR_YEC_BASE]\nNAME: 葉辰 (Ye Chen)\nAGE: 24\nAPPEARANCE: 黑色碎髮，眼神銳利。\nVISUAL_ANCHOR: (1boy:1.2), (Ye Chen:1.3)`);
-            }
-
-            const actId = await DriveAPI.findId('03_ACTIONS', coreId, true);
-            if (actId && !(await DriveAPI.findId('ACT_PRECISE_SHOOT.txt', actId, false))) {
-                await DriveAPI.createFile('ACT_PRECISE_SHOOT.txt', actId, `[ACT_PRECISE_SHOOT]\nNAME: 精準射擊\nREQUIRES: [STATE_VISION_NORMAL]\nBLOCKED_BY: [PHYS_BLIND_RIGHT_EYE]\nALTERNATIVES: [ALT_1: 聽聲辨位]`);
-            }
-
-            const physId = await DriveAPI.findId('07_PHYSICAL', coreId, true);
-            if (physId && !(await DriveAPI.findId('PHYS_BLIND_RIGHT_EYE.txt', physId, false))) {
-                await DriveAPI.createFile('PHYS_BLIND_RIGHT_EYE.txt', physId, `[PHYS_BLIND_RIGHT_EYE]\nNAME: 右眼失明\nEFFECT: 右眼完全喪失視覺。\nDURATION_TTL: 3 Chapters\nBLOCKED_ACTIONS: 精準射擊, 視覺捕捉`);
-            }
-
-            state.isInitialized = true;
-            await ModuleLoader.loadAll();
-            renderCurrentView();
-        }
-    };
-
-    // --- Outline Assembler ---
-    const OutlineAssembler = {
-        generate() {
-            const d = state.outlineData;
-            let outline = `[CHAPTER_${d.chapter}_${d.version}]\n### 本章核心事件\n${d.coreEvent}\n\n`;
-            const tabNames = ["起", "承", "轉", "合"];
-            
-            for (let i = 0; i < 4; i++) {
-                const tab = d.tabs[i];
-                outline += `【${tabNames[i]}】\n`;
-                if (tab.scene) outline += `- 全局場景：${tab.scene}\n`;
-                outline += "- 出場人物:\n";
-                let hasChars = false;
-                for (const charCode in tab.characters) {
-                    const charData = tab.characters[charCode];
-                    if (charData.checked) {
-                        hasChars = true;
-                        outline += `  - [${charCode}]:\n`;
-                        const labelMap = { Actions: "行為", Speech: "口吻", Clothing: "服裝", Items: "道具", Physical: "身體狀態", Mental: "精神狀態" };
-                        for (const key in charData.settings) {
-                            const s = charData.settings[key];
-                            if (s.name) outline += `    - ${labelMap[key]}: ${s.name}\n`;
-                            if (s.must) outline += `    - [MUST_EXECUTE (${labelMap[key]})]: ${s.must}\n`;
-                            if (s.forbid) outline += `    - [FORBIDDEN_EXECUTE (${labelMap[key]})]: ${s.forbid}\n`;
+                
+                if (Array.isArray(value)) {
+                    for (const fileName of value) {
+                        if (!(await DriveAPI.findId(fileName, currentId, false))) {
+                            const content = state.config.fileContents[fileName] || `// ${fileName} placeholder`;
+                            await DriveAPI.createFile(fileName, currentId, content);
                         }
                     }
+                } else if (typeof value === 'object' && value !== null) {
+                    await createStructure(value, currentId);
                 }
-                if (!hasChars) outline += "  - (無)\n";
-                if (tab.actionText) outline += `- 全局動作描述：${tab.actionText}\n`;
-                outline += "\n";
             }
-            outline += `[SYSTEM_INSTRUCTION]: 請根據上述大綱與模組，生成正文，並在文末嚴格按照 <sd_prompt> 格式輸出帶權重的視覺提示詞。`;
-            return outline;
-        }
-    };
+        };
+
+        await createStructure(state.config.structure, state.driveIds.root);
+        state.isInitialized = true;
+        await ModuleLoader.loadAll();
+        renderCurrentView();
+    }
 
     // --- UI Renderers ---
     function renderCurrentView() {
@@ -339,6 +281,11 @@
             btn.classList.toggle('text-on-surface-variant', btn.dataset.view !== state.currentView);
         });
 
+        if (!state.isInitialized && state.currentView !== 'system') {
+            container.innerHTML = `<div class="p-gutter text-center text-on-surface-variant">請先在 System 頁面載入配置並初始化環境。</div>`;
+            return;
+        }
+
         switch (state.currentView) {
             case 'system': renderSystemView(container); break;
             case 'modules': renderModulesView(container); break;
@@ -348,25 +295,30 @@
     }
 
     function renderSystemView(container) {
+        if (!state.config) {
+            renderUploadConfigView(container);
+            return;
+        }
+
         container.innerHTML = `
             <div class="p-gutter space-y-4">
-                <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">環境狀態與初始化</h2>
+                <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">專案環境狀態</h2>
                 <div class="glass-panel p-4 rounded-sm space-y-3">
                     <div class="flex justify-between items-center">
                         <span class="font-data-md text-sm">Root Workspace:</span>
                         <span class="font-data-md text-sm ${state.driveIds.root ? 'text-green-400' : 'text-error'}">${state.driveIds.root || 'NOT FOUND'}</span>
                     </div>
                     <div class="flex justify-between items-center">
-                        <span class="font-data-md text-sm">Central Core:</span>
-                        <span class="font-data-md text-sm ${state.driveIds.core ? 'text-green-400' : 'text-error'}">${state.driveIds.core || 'NOT FOUND'}</span>
+                        <span class="font-data-md text-sm">Config Version:</span>
+                        <span class="font-data-md text-sm text-primary-fixed-dim">${state.config.version || 'Unknown'}</span>
                     </div>
                     <div class="flex justify-between items-center">
-                        <span class="font-data-md text-sm">Modules Loaded:</span>
+                        <span class="font-data-md text-sm">Total Modules Loaded:</span>
                         <span class="font-data-md text-sm text-primary-fixed-dim">${Object.values(state.moduleData).reduce((a, b) => a + b.length, 0)}</span>
                     </div>
                 </div>
                 <button id="init-btn" class="w-full bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow">
-                    <span class="material-symbols-outlined">rocket_launch</span> 一鍵初始化天道流環境 (Google Drive)
+                    <span class="material-symbols-outlined">rocket_launch</span> 一鍵初始化專案環境
                 </button>
                 <button id="reload-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant">
                     🔄 重新載入模組庫
@@ -376,7 +328,7 @@
         document.getElementById('init-btn').onclick = async () => {
             document.getElementById('mask-status').innerText = 'INITIALIZING...';
             document.getElementById('secure-mask').classList.remove('hidden-mask');
-            await EnvSetup.initialize();
+            await initializeEnvironment();
             document.getElementById('secure-mask').classList.add('hidden-mask');
         };
         document.getElementById('reload-btn').onclick = async () => {
@@ -385,13 +337,46 @@
         };
     }
 
+    function renderUploadConfigView(container) {
+        container.innerHTML = `
+            <div class="p-gutter flex flex-col items-center justify-center h-full space-y-6">
+                <div class="text-center space-y-2">
+                    <span class="material-symbols-outlined text-6xl text-primary-fixed-dim">cloud_upload</span>
+                    <h2 class="font-label-caps text-lg text-on-surface">未偵測到專案配置檔</h2>
+                    <p class="font-data-md text-sm text-on-surface-variant">請上傳 <code class="bg-surface-container-high px-1 rounded">TianDao_Config.json</code> 以初始化環境。</p>
+                </div>
+                <input type="file" id="config-file-input" accept=".json" class="hidden">
+                <button id="upload-config-btn" class="bg-primary-container text-on-primary-fixed px-6 py-3 rounded-sm font-label-caps text-sm flex items-center gap-2 cyan-glow">
+                    <span class="material-symbols-outlined">upload_file</span> 選擇配置檔並上傳
+                </button>
+            </div>
+        `;
+        document.getElementById('upload-config-btn').onclick = () => {
+            document.getElementById('config-file-input').click();
+        };
+        document.getElementById('config-file-input').onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    state.config = JSON.parse(event.target.result);
+                    document.getElementById('mask-status').innerText = 'UPLOADING_CONFIG...';
+                    document.getElementById('secure-mask').classList.remove('hidden-mask');
+                    await DriveAPI.createFile(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, JSON.stringify(state.config, null, 2));
+                    await initializeEnvironment();
+                    document.getElementById('secure-mask').classList.add('hidden-mask');
+                } catch (err) {
+                    alert('配置檔解析失敗：' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        };
+    }
+
     function renderModulesView(container) {
-        if (!state.isInitialized) {
-            container.innerHTML = `<div class="p-gutter text-center text-on-surface-variant">請先在 System 頁面初始化環境。</div>`;
-            return;
-        }
         let html = `<div class="p-gutter space-y-4">`;
-        for (const cat of MOD_CATEGORIES) {
+        for (const cat of state.config.categories) {
             const mods = state.moduleData[cat.key] || [];
             html += `
                 <div class="space-y-2">
@@ -456,9 +441,14 @@
             const newName = prompt('請輸入新模組名稱 (不含 .txt):');
             if (!newName) return;
             const content = document.getElementById('editor-content').value;
-            const catPath = MOD_CATEGORIES.find(c => c.key === catKey).path;
-            const catId = await DriveAPI.findId(catPath, state.driveIds.core, true);
-            await DriveAPI.createFile(`${newName}.txt`, catId, content);
+            const cat = state.config.categories.find(c => c.key === catKey);
+            
+            let currentParentId = state.driveIds.root;
+            for (const folderName of cat.path) {
+                currentParentId = await DriveAPI.findId(folderName, currentParentId, true);
+            }
+            
+            await DriveAPI.createFile(`${newName}.txt`, currentParentId, content);
             await ModuleLoader.loadAll();
             modal.classList.add('hidden');
             renderCurrentView();
@@ -467,10 +457,6 @@
     }
 
     function renderOutlineView(container) {
-        if (!state.isInitialized) {
-            container.innerHTML = `<div class="p-gutter text-center text-on-surface-variant">請先在 System 頁面初始化環境。</div>`;
-            return;
-        }
         const d = state.outlineData;
         const tabNames = ["起", "承", "轉", "合"];
         
@@ -519,17 +505,13 @@
     function renderTabContent() {
         const tabContent = document.getElementById('tab-content');
         const tabData = state.outlineData.tabs[state.currentTab];
-        const scenes = state.moduleData['Scenes'] || [];
-        const chars = state.moduleData['Chars'] || [];
-        const modTypes = [
-            { key: 'Actions', label: '行為/動作' }, { key: 'Speech', label: '口吻/常用語' },
-            { key: 'Clothing', label: '服裝' }, { key: 'Items', label: '道具' },
-            { key: 'Physical', label: '身體狀態' }, { key: 'Mental', label: '精神狀態' }
-        ];
+        const scenes = state.moduleData['Inst_Scene'] || [];
+        const chars = state.moduleData['Inst_Char'] || [];
+        const modTypes = state.config.outlineModTypes || [];
 
         let html = `
             <div class="space-y-1">
-                <label class="font-label-caps text-[10px] text-on-surface-variant">全局場景</label>
+                <label class="font-label-caps text-[10px] text-on-surface-variant">全局場景 (Instance)</label>
                 <select id="scene-select" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-2 rounded-sm font-data-md text-sm">
                     <option value="">(無)</option>
                     ${scenes.map(s => `<option value="${s.code}" ${tabData.scene === s.code ? 'selected' : ''}>${s.name}</option>`).join('')}
@@ -540,7 +522,7 @@
                 <textarea id="action-text" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]">${tabData.actionText}</textarea>
             </div>
             <div class="space-y-2">
-                <label class="font-label-caps text-[10px] text-on-surface-variant">出場人物</label>
+                <label class="font-label-caps text-[10px] text-on-surface-variant">出場人物 (Instances)</label>
                 ${chars.map(c => `
                     <div class="glass-panel p-2 rounded-sm space-y-2">
                         <label class="flex items-center gap-2 cursor-pointer">
@@ -631,16 +613,16 @@
     }
 
     function renderTriggersView(container) {
-        const prompts = {
-            "AUDIT": "【自我審計協議】\n請執行自我審計，檢查上述生成內容是否違反當前生效模組。若有違規，請自行修正並輸出最終版。",
-            "REVIEW": "【角色內心復盤】\n請啟動角色內心復盤，推演本章互動對角色隱性關係的影響，並輸出結構化的 [FACT_LOG_UPDATE]。",
-            "DIRECTOR": "【導演視角反思】\n請先進行導演視角反思，思考如何用鏡頭語言還原文字張力，再生成 <sd_prompt>。",
-            "TOT": "【思維樹推演】\n請推演 3 種劇情走向，自我評估並淘汰不符合當前模組狀態的路線，選擇最合理的一條生成。"
+        const prompts = state.config.prompts || {
+            "AUDIT": "【自我審計協議】\n請執行自我審計，檢查上述生成內容是否違反當前生效模組。",
+            "REVIEW": "【角色內心復盤】\n請啟動角色內心復盤，推演本章互動對角色隱性關係的影響。",
+            "DIRECTOR": "【導演視角反思】\n請先進行導演視角反思，思考如何用鏡頭語言還原文字張力。",
+            "TOT": "【思維樹推演】\n請推演 3 種劇情走向，自我評估並淘汰不符合當前模組狀態的路線。"
         };
 
         container.innerHTML = `
             <div class="p-gutter space-y-4">
-                <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">強模型自我思維觸發器</h2>
+                <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">自我思維觸發器</h2>
                 <div class="grid grid-cols-2 gap-2">
                     ${Object.keys(prompts).map(key => `
                         <button class="trigger-btn bg-surface-container-high text-on-surface p-3 rounded-sm font-label-caps text-[10px] border border-outline-variant flex flex-col items-center gap-1 active:bg-surface-bright" data-prompt="${key}">
@@ -671,15 +653,50 @@
         });
 
         document.getElementById('refresh-preview').onclick = () => {
-            document.getElementById('outline-preview').innerText = OutlineAssembler.generate();
+            document.getElementById('outline-preview').innerText = generateOutline();
         };
 
         document.getElementById('copy-outline').onclick = () => {
-            navigator.clipboard.writeText(OutlineAssembler.generate());
+            navigator.clipboard.writeText(generateOutline());
             alert('大綱已複製到剪貼簿！');
         };
         
-        document.getElementById('outline-preview').innerText = OutlineAssembler.generate();
+        document.getElementById('outline-preview').innerText = generateOutline();
+    }
+
+    function generateOutline() {
+        const d = state.outlineData;
+        let outline = `[CHAPTER_${d.chapter}_${d.version}]\n### 本章核心事件\n${d.coreEvent}\n\n`;
+        const tabNames = ["起", "承", "轉", "合"];
+        
+        for (let i = 0; i < 4; i++) {
+            const tab = d.tabs[i];
+            outline += `【${tabNames[i]}】\n`;
+            if (tab.scene) outline += `- 全局場景：${tab.scene}\n`;
+            outline += "- 出場人物:\n";
+            let hasChars = false;
+            for (const charCode in tab.characters) {
+                const charData = tab.characters[charCode];
+                if (charData.checked) {
+                    hasChars = true;
+                    outline += `  - [${charCode}]:\n`;
+                    const labelMap = {};
+                    state.config.outlineModTypes.forEach(mt => labelMap[mt.key] = mt.label);
+                    
+                    for (const key in charData.settings) {
+                        const s = charData.settings[key];
+                        if (s.name) outline += `    - ${labelMap[key] || key}: ${s.name}\n`;
+                        if (s.must) outline += `    - [MUST_EXECUTE (${labelMap[key] || key})]: ${s.must}\n`;
+                        if (s.forbid) outline += `    - [FORBIDDEN_EXECUTE (${labelMap[key] || key})]: ${s.forbid}\n`;
+                    }
+                }
+            }
+            if (!hasChars) outline += "  - (無)\n";
+            if (tab.actionText) outline += `- 全局動作描述：${tab.actionText}\n`;
+            outline += "\n";
+        }
+        outline += `[SYSTEM_INSTRUCTION]: 請根據上述大綱與 OOP 實例模組，生成正文，並在文末嚴格按照 <sd_prompt> 格式輸出帶權重的視覺提示詞。`;
+        return outline;
     }
 
     // --- Event Listeners & Init ---
@@ -692,13 +709,19 @@
             
             document.getElementById('mask-status').innerText = 'LOCATING_WORKSPACE...';
             state.driveIds.root = await DriveAPI.findId(TDF_CONFIG.WORKSPACE_ROOT, null, true);
-            if (state.driveIds.root) {
-                state.driveIds.core = await DriveAPI.findId(TDF_CONFIG.CORE_PATH, state.driveIds.root, true);
-                if (state.driveIds.core) {
-                    state.isInitialized = true;
-                    document.getElementById('mask-status').innerText = 'LOADING_MODULES...';
-                    await ModuleLoader.loadAll();
-                }
+            if (!state.driveIds.root) {
+                const res = await DriveAPI.createFolder(TDF_CONFIG.WORKSPACE_ROOT, null);
+                state.driveIds.root = res.id;
+            }
+
+            document.getElementById('mask-status').innerText = 'CHECKING_CONFIG...';
+            const configId = await DriveAPI.findId(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, false);
+            if (configId) {
+                const content = await DriveAPI.getFileContent(configId);
+                state.config = JSON.parse(content);
+                state.isInitialized = true;
+                document.getElementById('mask-status').innerText = 'LOADING_MODULES...';
+                await ModuleLoader.loadAll();
             }
             
             document.getElementById('secure-mask').classList.add('hidden-mask');
