@@ -58,7 +58,7 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.3.001)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.4.001)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
@@ -119,7 +119,9 @@
         moduleData: {}, 
         outlineData: {
             chapter: '001', version: 'V1.0', coreEvent: '',
-            tabs: Array(4).fill(null).map(() => ({ scene: '', actionText: '', characters: {} }))
+            chapterSummaryRequirement: '', // [NEW] 本章總結需求調整
+            previousSummary: '', // [NEW] 前章總結參考依據
+            tabs: Array(4).fill(null).map(() => ({ scene: '', hook: '', actionText: '', characters: {} })) // [NEW] hook
         },
         currentView: 'system',
         currentTab: 0,
@@ -141,7 +143,7 @@
         attemptAutoLogin();
     }
 
-    // --- Session Management (F5 Fix) ---
+    // --- Session Management ---
     function handleTokenResponse(resp) {
         if (resp.error !== undefined) throw (resp);
         localStorage.setItem('tdf_access_token', resp.access_token);
@@ -525,6 +527,11 @@
                     <label class="font-label-caps text-[10px] text-on-surface-variant">本章核心事件</label>
                     <textarea id="core-event" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[60px]">${d.coreEvent}</textarea>
                 </div>
+                <!-- [NEW] 本章總結需求調整 -->
+                <div class="space-y-1 border-b border-outline-variant pb-3">
+                    <label class="font-label-caps text-[10px] text-primary-fixed-dim">本章總結需求調整 (Summary Protocol)</label>
+                    <textarea id="summary-req" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[60px]" placeholder="例：請提取角色隱性好感度變化、伏筆推進狀態，並輸出 JSON 格式的 Fact Log...">${d.chapterSummaryRequirement}</textarea>
+                </div>
 
                 <div class="flex border-b border-outline-variant">
                     ${tabNames.map((name, i) => `
@@ -540,6 +547,7 @@
         document.getElementById('chap-num').oninput = (e) => d.chapter = e.target.value;
         document.getElementById('chap-ver').oninput = (e) => d.version = e.target.value;
         document.getElementById('core-event').oninput = (e) => d.coreEvent = e.target.value;
+        document.getElementById('summary-req').oninput = (e) => d.chapterSummaryRequirement = e.target.value;
 
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.onclick = () => {
@@ -558,7 +566,19 @@
         const chars = state.moduleData['Inst_Char'] || [];
         const modTypes = state.config.outlineModTypes || [];
 
-        let html = `
+        let html = '';
+
+        // [NEW] 前章總結參考依據 (僅在【起】頁籤顯示)
+        if (state.currentTab === 0) {
+            html += `
+                <div class="space-y-1 border-b border-outline-variant pb-3 mb-3">
+                    <label class="font-label-caps text-[10px] text-primary-fixed-dim">前章總結參考依據 (Previous Summary)</label>
+                    <textarea id="prev-summary" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]" placeholder="貼上或輸入上一章的總結快照，作為本章源頭阻斷的歷史狀態依據...">${state.outlineData.previousSummary}</textarea>
+                </div>
+            `;
+        }
+
+        html += `
             <div class="space-y-1">
                 <label class="font-label-caps text-[10px] text-on-surface-variant">全局場景 (Instance)</label>
                 <select id="scene-select" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-2 rounded-sm font-data-md text-sm">
@@ -566,6 +586,13 @@
                     ${scenes.map(s => `<option value="${s.code}" ${tabData.scene === s.code ? 'selected' : ''}>${s.name}</option>`).join('')}
                 </select>
             </div>
+            
+            <!-- [NEW] HOOK承接詞 -->
+            <div class="space-y-1">
+                <label class="font-label-caps text-[10px] text-on-surface-variant">HOOK承接詞 (Transition Hook)</label>
+                <input type="text" id="hook-input" value="${tabData.hook || ''}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm" placeholder="例：然而，他並未察覺暗處的視線...">
+            </div>
+
             <div class="space-y-1">
                 <label class="font-label-caps text-[10px] text-on-surface-variant">動作/劇情描述</label>
                 <textarea id="action-text" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]">${tabData.actionText}</textarea>
@@ -612,7 +639,13 @@
         `;
         tabContent.innerHTML = html;
 
+        // Event Bindings
+        if (state.currentTab === 0) {
+            document.getElementById('prev-summary').oninput = (e) => state.outlineData.previousSummary = e.target.value;
+        }
+        
         document.getElementById('scene-select').onchange = (e) => tabData.scene = e.target.value;
+        document.getElementById('hook-input').oninput = (e) => tabData.hook = e.target.value; // [NEW]
         document.getElementById('action-text').oninput = (e) => tabData.actionText = e.target.value;
 
         tabContent.querySelectorAll('.char-check').forEach(cb => {
@@ -655,6 +688,7 @@
             const srcIdx = parseInt(document.getElementById('inherit-src').value);
             const srcTab = state.outlineData.tabs[srcIdx];
             tabData.scene = srcTab.scene;
+            tabData.hook = srcTab.hook; // [NEW] 繼承 HOOK
             tabData.actionText = srcTab.actionText;
             tabData.characters = JSON.parse(JSON.stringify(srcTab.characters));
             renderTabContent();
@@ -715,13 +749,30 @@
 
     function generateOutline() {
         const d = state.outlineData;
-        let outline = `[CHAPTER_${d.chapter}_${d.version}]\n### 本章核心事件\n${d.coreEvent}\n\n`;
+        let outline = `[CHAPTER_${d.chapter}_${d.version}]\n`;
+        
+        // [NEW] 前章總結
+        if (d.previousSummary) {
+            outline += `### 前章總結參考依據\n${d.previousSummary}\n\n`;
+        }
+        
+        outline += `### 本章核心事件\n${d.coreEvent}\n\n`;
+        
+        // [NEW] 總結需求
+        if (d.chapterSummaryRequirement) {
+            outline += `### 本章總結需求調整\n${d.chapterSummaryRequirement}\n\n`;
+        }
+
         const tabNames = ["起", "承", "轉", "合"];
         
         for (let i = 0; i < 4; i++) {
             const tab = d.tabs[i];
             outline += `【${tabNames[i]}】\n`;
             if (tab.scene) outline += `- 全局場景：${tab.scene}\n`;
+            
+            // [NEW] HOOK
+            if (tab.hook) outline += `- HOOK承接詞：${tab.hook}\n`;
+            
             outline += "- 出場人物:\n";
             let hasChars = false;
             for (const charCode in tab.characters) {
@@ -751,7 +802,6 @@
     // --- Event Listeners & Init ---
     document.getElementById('auth-btn').addEventListener('click', () => {
         if (!state.tokenClient) return;
-        // 如果已經有 token，直接執行後續動作
         if (gapi.client.getToken()) {
             performPostLoginActions();
             return;
