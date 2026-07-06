@@ -115,7 +115,7 @@
                 <span class="font-label-caps text-[8px] uppercase">Triggers</span>
             </button>
         </div>
-        <!-- 收起按鈕（位於選單右側） -->
+        <!-- 收起按鈕 -->
         <button id="nav-collapse-btn" class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant hover:bg-primary-container hover:text-on-primary-fixed flex items-center justify-center transition-all" title="收起選單">
             <span class="material-symbols-outlined text-[18px]">keyboard_arrow_down</span>
         </button>
@@ -445,7 +445,7 @@
                     <div class="flex justify-between items-center"><span class="font-data-md text-sm">Total Books:</span><span class="font-data-md text-sm text-primary-fixed-dim">${state.books.length}</span></div>
                 </div>
                 <button id="init-btn" class="w-full bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow"><span class="material-symbols-outlined">rocket_launch</span> 一鍵初始化專案環境</button>
-                <button id="reload-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant">🔄 重新載入模組庫</button>
+                <button id="reload-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant"> 重新載入模組庫</button>
             </div>
         `;
         document.getElementById('init-btn').onclick = async () => {
@@ -459,7 +459,7 @@
 
     function renderUploadConfigView(container) {
         container.innerHTML = `
-            <div class="p-gutter flex flex-col items-center justify-center h-full space-y-6">
+            <div class="p-gutter flex flex-col items-center justify-center h-full space-y-6 pb-40">
                 <div class="text-center space-y-2">
                     <span class="material-symbols-outlined text-6xl text-primary-fixed-dim">cloud_upload</span>
                     <h2 class="font-label-caps text-lg text-on-surface">未偵測到專案配置檔</h2>
@@ -553,7 +553,7 @@
                         <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">故事風格 (Style)</label><input type="text" id="b-style" value="${book.style}" placeholder="例：賽博龐克 / 懸疑" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                         <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">大綱字數限制</label><input type="number" id="b-para-word" value="${book.paragraphWordCount}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                     </div>
-                    <button id="save-meta-btn" class="bg-primary-container text-on-primary-fixed px-4 py-2 rounded-sm font-label-caps text-xs mb-32">💾 儲存設定</button>
+                    <button id="save-meta-btn" class="bg-primary-container text-on-primary-fixed px-4 py-2 rounded-sm font-label-caps text-xs">💾 儲存設定</button>
                 </div>
             `;
             document.getElementById('save-meta-btn').onclick = () => {
@@ -574,7 +574,7 @@
                         <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">設定主要演員人數</label><input type="number" id="cfg-actors" value="${cfg.mainActors}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                         <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">設定每段字數</label><input type="number" id="cfg-words" value="${cfg.wordCount}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                     </div>
-                    <button id="gen-prompt-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2 mb-32"><span class="material-symbols-outlined">auto_awesome</span> 產生大綱提問詞 (複製至剪貼簿)</button>
+                    <button id="gen-prompt-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2"><span class="material-symbols-outlined">auto_awesome</span> 產生大綱提問詞 (複製至剪貼簿)</button>
                 </div>
             `;
             document.getElementById('gen-prompt-btn').onclick = () => {
@@ -591,7 +591,7 @@
             const isActor = state.currentBookTab === 'actors';
             const list = isActor ? book.actors : book.scenes;
             
-            // 【升級】收集所有可用模組，不再限於 Inst_Char，而是所有模組庫
+            // 收集所有可用模組
             let allAvailableModules = [];
             for (const key in state.moduleData) {
                 state.moduleData[key].forEach(m => {
@@ -606,37 +606,37 @@
                         <button id="add-item-btn" class="bg-primary-container text-on-primary-fixed px-3 py-1.5 rounded-sm font-label-caps text-[10px] flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">add</span> 新增</button>
                     </div>
                     <div class="space-y-4">
-                        ${list.length === 0 ? '<div class="text-xs text-on-surface-variant">尚未設定，請點擊新增。</div>' : list.map((item, idx) => `
+                        ${list.length === 0 ? '<div class="text-xs text-on-surface-variant">尚未設定，請點擊新增。</div>' : list.map((item, idx) => {
+                            // 兼容舊數據：將 oopCode 轉換為 linkedModules 陣列
+                            if (!item.linkedModules) {
+                                item.linkedModules = item.oopCode ? [item.oopCode] : [];
+                            }
+                            return `
                             <div class="bg-surface-container-high p-4 rounded-sm border border-outline-variant space-y-3 relative group">
-                                <!-- 刪除按鈕 -->
                                 <button data-idx="${idx}" class="del-item-btn absolute top-2 right-2 text-error hover:bg-error-container/20 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity"><span class="material-symbols-outlined text-[18px]">delete</span></button>
                                 
-                                <!-- 1. 基礎資訊 -->
                                 <div class="grid grid-cols-1 gap-2">
                                     <div class="space-y-1">
                                         <label class="font-label-caps text-[10px] text-on-surface-variant">${isActor ? '演員名稱' : '場景名稱'}</label>
                                         <input type="text" value="${item.name || ''}" data-idx="${idx}" class="item-name-input w-full bg-surface border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm" placeholder="輸入名稱...">
                                     </div>
-                                    <!-- 【新增】角色描述 (AUTOLINK 的依據) -->
                                     <div class="space-y-1">
                                         <label class="font-label-caps text-[10px] text-primary-fixed-dim">角色/場景描述 (用於 AI 推薦)</label>
-                                        <textarea data-idx="${idx}" class="item-desc-input w-full bg-surface border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-xs min-h-[60px]" placeholder="例：24歲男性，性格冷酷，右眼失明，說話簡短...">${item.description || ''}</textarea>
+                                        <textarea data-idx="${idx}" class="item-desc-input w-full bg-surface border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-xs min-h-[60px]" placeholder="例：24歲男性，性格冷酷，右眼失明...">${item.description || ''}</textarea>
                                     </div>
                                 </div>
 
-                                <!-- 2. OOP 模組關聯 (一對多) -->
                                 <div class="space-y-2 border-t border-outline-variant pt-3">
                                     <div class="flex justify-between items-center">
                                         <label class="font-label-caps text-[10px] text-on-surface-variant">OOP 模組關聯 (Templates) - 可多選</label>
                                         <div class="flex gap-2">
-                                            <button data-idx="${idx}" class="autolink-btn bg-surface-tint/20 text-primary-fixed-dim px-2 py-1 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:bg-surface-tint/30"><span class="material-symbols-outlined text-[14px]">auto_awesome</span> AUTOLINK 推薦</button>
+                                            <button data-idx="${idx}" class="autolink-btn bg-surface-tint/20 text-primary-fixed-dim px-2 py-1 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:bg-surface-tint/30"><span class="material-symbols-outlined text-[14px]">auto_awesome</span> AUTOLINK</button>
                                             <button data-idx="${idx}" class="add-mod-btn bg-surface-container-high text-on-surface px-2 py-1 rounded-sm font-label-caps text-[10px] border border-outline-variant">+ 手動添加</button>
                                         </div>
                                     </div>
                                     
-                                    <!-- 顯示已關聯的模組 Tags -->
                                     <div class="flex flex-wrap gap-2 min-h-[30px] p-2 bg-surface rounded-sm border border-outline-variant/50" id="mod-tags-container-${idx}">
-                                        ${(item.linkedModules || (item.oopCode ? [item.oopCode] : [])).map(modCode => {
+                                        ${item.linkedModules.map(modCode => {
                                             const modInfo = allAvailableModules.find(m => m.code === modCode);
                                             const displayName = modInfo ? `${modInfo.name} [${modCode}]` : modCode;
                                             return `
@@ -646,25 +646,21 @@
                                                 </span>
                                             `;
                                         }).join('')}
-                                        ${(item.linkedModules || (item.oopCode ? [item.oopCode] : [])).length === 0 ? '<span class="text-xs text-on-surface-variant/50 p-1">尚未關聯模組</span>' : ''}
+                                        ${item.linkedModules.length === 0 ? '<span class="text-xs text-on-surface-variant/50 p-1">尚未關聯模組</span>' : ''}
                                     </div>
                                 </div>
 
-                                <!-- 3. 自定義標籤 -->
                                 <div class="space-y-1">
                                     <label class="font-label-caps text-[8px] text-on-surface-variant">自定義標籤 (Tags)</label>
                                     <input type="text" value="${item.tags || ''}" data-idx="${idx}" class="item-tags-input w-full bg-surface border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" placeholder="例：主角, 敵對">
                                 </div>
                             </div>
-                        `).join('')}
+                        `}).join('')}
                     </div>
-                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-32">💾 儲存${isActor ? '演員' : '場景'}池</button>
+                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-8">💾 儲存${isActor ? '演員' : '場景'}池</button>
                 </div>
             `;
 
-            // --- 事件綁定 ---
-            
-            // 1. 新增/刪除/儲存基礎邏輯
             document.getElementById('add-item-btn').onclick = () => {
                 list.push({ id: (isActor ? 'a_' : 's_') + Date.now(), name: '', description: '', linkedModules: [], tags: '' });
                 renderBookTabContent();
@@ -682,102 +678,21 @@
                 btn.onclick = () => { list.splice(btn.dataset.idx, 1); renderBookTabContent(); };
             });
 
-            // 2. 移除單一模組 Tag
             content.querySelectorAll('.remove-mod-btn').forEach(btn => {
                 btn.onclick = (e) => {
                     const idx = e.target.dataset.idx;
                     const code = e.target.dataset.code;
-                    if (!list[idx].linkedModules) list[idx].linkedModules = list[idx].oopCode ? [list[idx].oopCode] : [];
                     list[idx].linkedModules = list[idx].linkedModules.filter(c => c !== code);
                     renderBookTabContent();
                 };
             });
 
-            // 3. 手動添加模組
             content.querySelectorAll('.add-mod-btn').forEach(btn => {
-                btn.onclick = (e) => {
-                    const idx = e.target.dataset.idx;
-                    const code = prompt("請輸入要關聯的模組代碼 (例如 MOD_PERSONA_COLD):\n\n可用模組:\n" + allAvailableModules.map(m => `${m.code} (${m.name})`).join('\n'));
-                    if (code && allAvailableModules.find(m => m.code === code)) {
-                        if (!list[idx].linkedModules) list[idx].linkedModules = [];
-                        if (!list[idx].linkedModules.includes(code)) {
-                            list[idx].linkedModules.push(code);
-                            renderBookTabContent();
-                        } else {
-                            alert("該模組已存在！");
-                        }
-                    } else if (code) {
-                        alert("找不到該模組代碼，請檢查拼寫。");
-                    }
-                };
+                btn.onclick = (e) => openAddModuleModal(e.target.dataset.idx, list, allAvailableModules);
             });
 
-            // 4. AUTOLINK 智能推薦邏輯
             content.querySelectorAll('.autolink-btn').forEach(btn => {
-                btn.onclick = (e) => {
-                    const idx = e.target.dataset.idx;
-                    const item = list[idx];
-                    const desc = item.description || item.name;
-                    
-                    if (!desc) {
-                        alert("請先填寫「角色/場景描述」，AI 需要依據描述來推薦模組！");
-                        return;
-                    }
-
-                    const modListStr = allAvailableModules.map(m => `- ${m.code} : ${m.name}`).join('\n');
-                    const promptText = `【天道流 AUTOLINK 推薦請求】\n角色/場景描述：${desc}\n\n當前可用模組庫：\n${modListStr}\n\n任務：請根據描述，從模組庫中推薦最合適的模組代碼（一對多關聯）。\n請嚴格返回 JSON 陣列格式，例如：["CHAR_A_BASE", "MOD_PERSONA_COLD"]。\n不要返回其他內容，只返回 JSON。`;
-
-                    const modalHtml = `
-                        <div class="modal-overlay" id="autolink-modal">
-                            <div class="bg-surface border border-outline-variant rounded-sm w-full max-w-2xl p-6 space-y-4">
-                                <h3 class="font-label-caps text-sm text-primary-fixed-dim">✨ AUTOLINK 智能推薦</h3>
-                                <div class="space-y-2">
-                                    <label class="text-xs text-on-surface-variant">步驟 1：複製以下提示詞發送給 LLM</label>
-                                    <textarea readonly class="w-full bg-black/30 text-on-surface p-2 rounded text-xs h-32 font-mono">${promptText}</textarea>
-                                    <button id="copy-prompt-btn" class="bg-surface-container-high text-on-surface px-3 py-1 rounded text-xs">複製提示詞</button>
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-xs text-on-surface-variant">步驟 2：將 LLM 返回的 JSON 結果貼上</label>
-                                    <textarea id="autolink-result-input" class="w-full bg-black/30 text-on-surface p-2 rounded text-xs h-20 font-mono" placeholder='例如：["CHAR_A_BASE", "MOD_PERSONA_COLD"]'></textarea>
-                                </div>
-                                <div class="flex justify-end gap-2 pt-2">
-                                    <button id="close-autolink-btn" class="bg-surface-container-high text-on-surface px-4 py-2 rounded text-xs">取消</button>
-                                    <button id="apply-autolink-btn" class="bg-primary-container text-on-primary-fixed px-4 py-2 rounded text-xs">載入並套用</button>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    
-                    const modalContainer = document.getElementById('modal-container');
-                    modalContainer.innerHTML = modalHtml;
-                    modalContainer.classList.remove('hidden');
-
-                    document.getElementById('copy-prompt-btn').onclick = () => {
-                        navigator.clipboard.writeText(promptText);
-                        alert('提示詞已複製！請去 LLM 對話框貼上並取得結果。');
-                    };
-                    
-                    document.getElementById('close-autolink-btn').onclick = () => {
-                        modalContainer.classList.add('hidden');
-                    };
-
-                    document.getElementById('apply-autolink-btn').onclick = () => {
-                        const resultStr = document.getElementById('autolink-result-input').value;
-                        try {
-                            const parsedCodes = JSON.parse(resultStr);
-                            if (Array.isArray(parsedCodes)) {
-                                list[idx].linkedModules = parsedCodes;
-                                modalContainer.classList.add('hidden');
-                                renderBookTabContent();
-                                alert(`成功載入 ${parsedCodes.length} 個推薦模組！`);
-                            } else {
-                                alert('格式錯誤：LLM 返回的不是陣列。');
-                            }
-                        } catch (e) {
-                            alert('JSON 解析失敗，請確認 LLM 返回的是標準 JSON 格式 (例如 ["CODE1", "CODE2"])。');
-                        }
-                    };
-                };
+                btn.onclick = (e) => openAutolinkModal(e.target.dataset.idx, list, allAvailableModules);
             });
         }
         else if (state.currentBookTab === 'chapters') {
@@ -810,7 +725,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <button id="save-chaps-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-32"> 儲存章節列表</button>
+                    <button id="save-chaps-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-8"> 儲存章節列表</button>
                 </div>
             `;
             document.getElementById('add-chap-btn').onclick = () => {
@@ -829,6 +744,101 @@
                 btn.onclick = () => { book.chapters.splice(btn.dataset.idx, 1); renderBookTabContent(); };
             });
         }
+    }
+
+    // --- Modal Functions for OOP Association ---
+    function openAddModuleModal(idx, list, allAvailableModules) {
+        const modal = document.getElementById('modal-container');
+        modal.innerHTML = `
+            <div class="modal-overlay">
+                <div class="bg-surface border border-outline-variant rounded-sm w-full max-w-lg max-h-[80vh] flex flex-col">
+                    <div class="p-4 border-b border-outline-variant flex justify-between items-center">
+                        <div class="font-label-caps text-xs text-primary-fixed-dim">選擇模組進行關聯</div>
+                        <button id="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-4 space-y-2">
+                        ${allAvailableModules.map(m => `
+                            <div class="flex justify-between items-center p-2 bg-surface-container-high rounded-sm border border-outline-variant/50 hover:bg-surface-container-highest transition-colors">
+                                <div>
+                                    <div class="font-data-md text-sm text-on-surface">${m.name}</div>
+                                    <div class="font-label-caps text-[8px] text-outline uppercase">${m.code}</div>
+                                </div>
+                                <button class="add-single-mod-btn bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm text-[10px]" data-code="${m.code}">添加</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+        modal.classList.remove('hidden');
+        document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
+        modal.querySelectorAll('.add-single-mod-btn').forEach(btn => {
+            btn.onclick = () => {
+                const code = btn.dataset.code;
+                if (!list[idx].linkedModules.includes(code)) {
+                    list[idx].linkedModules.push(code);
+                }
+                modal.classList.add('hidden');
+                renderBookTabContent();
+            };
+        });
+    }
+
+    function openAutolinkModal(idx, list, allAvailableModules) {
+        const item = list[idx];
+        const desc = item.description || item.name;
+        if (!desc) {
+            alert("請先填寫「角色/場景描述」，AI 需要依據描述來推薦模組！");
+            return;
+        }
+
+        const modListStr = allAvailableModules.map(m => `- ${m.code} : ${m.name}`).join('\n');
+        const promptText = `【天道流 AUTOLINK 推薦請求】\n角色/場景描述：${desc}\n\n當前可用模組庫：\n${modListStr}\n\n任務：請根據描述，從模組庫中推薦最合適的模組代碼（一對多關聯）。\n請嚴格返回 JSON 陣列格式，例如：["CHAR_A_BASE", "MOD_PERSONA_COLD"]。\n不要返回其他內容，只返回 JSON。`;
+
+        const modal = document.getElementById('modal-container');
+        modal.innerHTML = `
+            <div class="modal-overlay">
+                <div class="bg-surface border border-outline-variant rounded-sm w-full max-w-2xl p-6 space-y-4">
+                    <h3 class="font-label-caps text-sm text-primary-fixed-dim">✨ AUTOLINK 智能推薦</h3>
+                    <div class="space-y-2">
+                        <label class="text-xs text-on-surface-variant">步驟 1：複製以下提示詞發送給 LLM</label>
+                        <textarea readonly class="w-full bg-black/30 text-on-surface p-2 rounded text-xs h-32 font-mono">${promptText}</textarea>
+                        <button id="copy-prompt-btn" class="bg-surface-container-high text-on-surface px-3 py-1 rounded text-xs">複製提示詞</button>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-xs text-on-surface-variant">步驟 2：將 LLM 返回的 JSON 結果貼上</label>
+                        <textarea id="autolink-result-input" class="w-full bg-black/30 text-on-surface p-2 rounded text-xs h-20 font-mono" placeholder='例如：["CHAR_A_BASE", "MOD_PERSONA_COLD"]'></textarea>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button id="close-autolink-btn" class="bg-surface-container-high text-on-surface px-4 py-2 rounded text-xs">取消</button>
+                        <button id="apply-autolink-btn" class="bg-primary-container text-on-primary-fixed px-4 py-2 rounded text-xs">載入並套用</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        modal.classList.remove('hidden');
+
+        document.getElementById('copy-prompt-btn').onclick = () => {
+            navigator.clipboard.writeText(promptText);
+            alert('提示詞已複製！請去 LLM 對話框貼上並取得結果。');
+        };
+        document.getElementById('close-autolink-btn').onclick = () => modal.classList.add('hidden');
+        document.getElementById('apply-autolink-btn').onclick = () => {
+            const resultStr = document.getElementById('autolink-result-input').value;
+            try {
+                const parsedCodes = JSON.parse(resultStr);
+                if (Array.isArray(parsedCodes)) {
+                    list[idx].linkedModules = parsedCodes;
+                    modal.classList.add('hidden');
+                    renderBookTabContent();
+                    alert(`成功載入 ${parsedCodes.length} 個推薦模組！`);
+                } else {
+                    alert('格式錯誤：LLM 返回的不是陣列。');
+                }
+            } catch (e) {
+                alert('JSON 解析失敗，請確認 LLM 返回的是標準 JSON 格式 (例如 ["CODE1", "CODE2"])。');
+            }
+        };
     }
 
     // --- Modules View ---
