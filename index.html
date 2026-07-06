@@ -58,7 +58,7 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.001)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.002)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
@@ -462,7 +462,7 @@
         };
     }
 
-    // --- Books View (NEW) ---
+    // --- Books View (FIXED) ---
     function renderBooksView(container) {
         const book = getCurrentBook();
         const tabs = [
@@ -501,11 +501,13 @@
         `;
         container.innerHTML = html;
 
+        // 【修復】將新增與儲存按鈕的事件綁定移出 if (book) 判斷，確保無書籍時也能點擊
+        document.getElementById('new-book-btn').onclick = createNewBook;
+        document.getElementById('save-books-btn').onclick = saveBooksData;
+
         if (book) {
             document.getElementById('book-selector').onchange = (e) => { state.currentBookId = e.target.value; renderCurrentView(); };
-            document.getElementById('new-book-btn').onclick = createNewBook;
             document.getElementById('del-book-btn').onclick = deleteCurrentBook;
-            document.getElementById('save-books-btn').onclick = saveBooksData;
             document.querySelectorAll('.book-tab-btn').forEach(btn => {
                 btn.onclick = () => { state.currentBookTab = btn.dataset.tab; renderCurrentView(); };
             });
@@ -564,9 +566,7 @@
         else if (state.currentBookTab === 'actors' || state.currentBookTab === 'scenes') {
             const isActor = state.currentBookTab === 'actors';
             const list = isActor ? book.actors : book.scenes;
-            // V3.0 OOP 哲學：實例 (Inst) 應該繼承 原型 (Arch)
-            const archetypeKey = isActor ? 'Arch_Body' : 'Arch_Env';
-            const oopModules = state.moduleData[archetypeKey] || [];
+            const oopModules = state.moduleData[isActor ? 'Inst_Char' : 'Inst_Scene'] || [];
             
             content.innerHTML = `
                 <div class="glass-panel p-4 space-y-4 rounded-sm">
@@ -583,7 +583,7 @@
                                 </div>
                                 <div class="grid grid-cols-2 gap-2">
                                     <div class="space-y-1">
-                                        <label class="font-label-caps text-[8px] text-on-surface-variant">繼承原型 (Archetype)</label>
+                                        <label class="font-label-caps text-[8px] text-on-surface-variant">OOP 模組關聯 (Templates)</label>
                                         <select data-idx="${idx}" class="item-oop-select w-full bg-surface border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]">
                                             <option value="">(無綁定)</option>
                                             ${oopModules.map(m => `<option value="${m.code}" ${item.oopCode === m.code ? 'selected' : ''}>${m.name} [${m.code}]</option>`).join('')}
@@ -645,7 +645,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <button id="save-chaps-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">💾 儲存章節列表</button>
+                    <button id="save-chaps-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant"> 儲存章節列表</button>
                 </div>
             `;
             document.getElementById('add-chap-btn').onclick = () => {
@@ -733,7 +733,7 @@
         };
     }
 
-    // --- Outline View (Modified to use Books Data) ---
+    // --- Outline View ---
     function renderOutlineView(container) {
         const book = getCurrentBook();
         if (!book) {
@@ -775,7 +775,6 @@
         const tabData = state.outlineData.tabs[state.currentTab];
         const book = getCurrentBook();
         
-        // [CRITICAL] 數據源切換為 Books 頁籤的實例池
         const scenes = book ? book.scenes : [];
         const chars = book ? book.actors : [];
         const modTypes = state.config.outlineModTypes || [];
