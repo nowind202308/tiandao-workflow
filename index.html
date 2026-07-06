@@ -487,7 +487,7 @@
         };
     }
 
-    // --- Books View (FIXED) ---
+    // --- Books View ---
     function renderBooksView(container) {
         const book = getCurrentBook();
         const tabs = [
@@ -553,7 +553,7 @@
                         <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">故事風格 (Style)</label><input type="text" id="b-style" value="${book.style}" placeholder="例：賽博龐克 / 懸疑" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                         <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">大綱字數限制</label><input type="number" id="b-para-word" value="${book.paragraphWordCount}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                     </div>
-                    <button id="save-meta-btn" class="bg-primary-container text-on-primary-fixed px-4 py-2 rounded-sm font-label-caps text-xs">💾 儲存設定</button>
+                    <button id="save-meta-btn" class="bg-primary-container text-on-primary-fixed px-4 py-2 rounded-sm font-label-caps text-xs mb-32">💾 儲存設定</button>
                 </div>
             `;
             document.getElementById('save-meta-btn').onclick = () => {
@@ -574,7 +574,7 @@
                         <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">設定主要演員人數</label><input type="number" id="cfg-actors" value="${cfg.mainActors}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                         <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">設定每段字數</label><input type="number" id="cfg-words" value="${cfg.wordCount}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                     </div>
-                    <button id="gen-prompt-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2"><span class="material-symbols-outlined">auto_awesome</span> 產生大綱提問詞 (複製至剪貼簿)</button>
+                    <button id="gen-prompt-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2 mb-32"><span class="material-symbols-outlined">auto_awesome</span> 產生大綱提問詞 (複製至剪貼簿)</button>
                 </div>
             `;
             document.getElementById('gen-prompt-btn').onclick = () => {
@@ -582,8 +582,7 @@
                 cfg.mainActors = parseInt(document.getElementById('cfg-actors').value) || 3;
                 cfg.wordCount = parseInt(document.getElementById('cfg-words').value) || 5000;
                 saveBooksData();
-                const prompt = `【大綱生成指令】\n請為故事《${book.title}》生成一份總體大綱。\n- 風格：${book.style}\n- 總章節數：${cfg.totalChapters}\n- 主要演員人數：${cfg.mainActors}\n\n
-                請輸出 JSON 格式的章節規劃，包含章節編號、章節編號、章節版次，每章節分為【起】、【承】、【轉】、【合】四個段落，並嚴格按照【起】、【承】、【轉】、【合】四個段落每段落約 ${cfg.wordCount} 字撰寫核心事件摘要。`;
+                const prompt = `【大綱生成指令】\n請為故事《${book.title}》生成一份總體大綱。\n- 風格：${book.style}\n- 總章節數：${cfg.totalChapters}\n- 主要演員人數：${cfg.mainActors}\n\n請輸出 JSON 格式的章節規劃，包含章節編號、章節版次，每章節分為【起】、【承】、【轉】、【合】四個段落，並嚴格按照四個段落每段落約 ${cfg.wordCount} 字撰寫核心事件摘要。`;
                 navigator.clipboard.writeText(prompt);
                 alert('大綱提問詞已複製！請貼至 LLM 生成大綱。');
             };
@@ -591,53 +590,194 @@
         else if (state.currentBookTab === 'actors' || state.currentBookTab === 'scenes') {
             const isActor = state.currentBookTab === 'actors';
             const list = isActor ? book.actors : book.scenes;
-            const oopModules = state.moduleData[isActor ? 'Inst_Char' : 'Inst_Scene'] || [];
             
+            // 【升級】收集所有可用模組，不再限於 Inst_Char，而是所有模組庫
+            let allAvailableModules = [];
+            for (const key in state.moduleData) {
+                state.moduleData[key].forEach(m => {
+                    allAvailableModules.push({ code: m.code, name: m.name, category: key });
+                });
+            }
+
             content.innerHTML = `
                 <div class="glass-panel p-4 space-y-4 rounded-sm">
                     <div class="flex justify-between items-center">
-                        <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">${isActor ? '演員' : '場景'}總表與 OOP 關聯</h3>
+                        <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">${isActor ? '演員' : '場景'}總表與 OOP 關聯 (一對多)</h3>
                         <button id="add-item-btn" class="bg-primary-container text-on-primary-fixed px-3 py-1.5 rounded-sm font-label-caps text-[10px] flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">add</span> 新增</button>
                     </div>
-                    <div class="space-y-2">
+                    <div class="space-y-4">
                         ${list.length === 0 ? '<div class="text-xs text-on-surface-variant">尚未設定，請點擊新增。</div>' : list.map((item, idx) => `
-                            <div class="bg-surface-container-high p-3 rounded-sm border border-outline-variant space-y-2">
-                                <div class="flex justify-between items-center">
-                                    <input type="text" value="${item.name}" data-idx="${idx}" class="item-name-input flex-1 bg-transparent border-b border-outline text-on-surface font-data-md text-sm focus:outline-none focus:border-primary-fixed-dim" placeholder="${isActor ? '演員名稱' : '場景名稱'}">
-                                    <button data-idx="${idx}" class="del-item-btn text-error hover:bg-error-container/20 p-1 rounded"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                            <div class="bg-surface-container-high p-4 rounded-sm border border-outline-variant space-y-3 relative group">
+                                <!-- 刪除按鈕 -->
+                                <button data-idx="${idx}" class="del-item-btn absolute top-2 right-2 text-error hover:bg-error-container/20 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                                
+                                <!-- 1. 基礎資訊 -->
+                                <div class="grid grid-cols-1 gap-2">
+                                    <div class="space-y-1">
+                                        <label class="font-label-caps text-[10px] text-on-surface-variant">${isActor ? '演員名稱' : '場景名稱'}</label>
+                                        <input type="text" value="${item.name || ''}" data-idx="${idx}" class="item-name-input w-full bg-surface border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm" placeholder="輸入名稱...">
+                                    </div>
+                                    <!-- 【新增】角色描述 (AUTOLINK 的依據) -->
+                                    <div class="space-y-1">
+                                        <label class="font-label-caps text-[10px] text-primary-fixed-dim">角色/場景描述 (用於 AI 推薦)</label>
+                                        <textarea data-idx="${idx}" class="item-desc-input w-full bg-surface border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-xs min-h-[60px]" placeholder="例：24歲男性，性格冷酷，右眼失明，說話簡短...">${item.description || ''}</textarea>
+                                    </div>
                                 </div>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <div class="space-y-1">
-                                        <label class="font-label-caps text-[8px] text-on-surface-variant">OOP 模組關聯 (Templates)</label>
-                                        <select data-idx="${idx}" class="item-oop-select w-full bg-surface border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]">
-                                            <option value="">(無綁定)</option>
-                                            ${oopModules.map(m => `<option value="${m.code}" ${item.oopCode === m.code ? 'selected' : ''}>${m.name} [${m.code}]</option>`).join('')}
-                                        </select>
+
+                                <!-- 2. OOP 模組關聯 (一對多) -->
+                                <div class="space-y-2 border-t border-outline-variant pt-3">
+                                    <div class="flex justify-between items-center">
+                                        <label class="font-label-caps text-[10px] text-on-surface-variant">OOP 模組關聯 (Templates) - 可多選</label>
+                                        <div class="flex gap-2">
+                                            <button data-idx="${idx}" class="autolink-btn bg-surface-tint/20 text-primary-fixed-dim px-2 py-1 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:bg-surface-tint/30"><span class="material-symbols-outlined text-[14px]">auto_awesome</span> AUTOLINK 推薦</button>
+                                            <button data-idx="${idx}" class="add-mod-btn bg-surface-container-high text-on-surface px-2 py-1 rounded-sm font-label-caps text-[10px] border border-outline-variant">+ 手動添加</button>
+                                        </div>
                                     </div>
-                                    <div class="space-y-1">
-                                        <label class="font-label-caps text-[8px] text-on-surface-variant">自定義標籤 (Tags)</label>
-                                        <input type="text" value="${item.tags || ''}" data-idx="${idx}" class="item-tags-input w-full bg-surface border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" placeholder="例：主角, 敵對">
+                                    
+                                    <!-- 顯示已關聯的模組 Tags -->
+                                    <div class="flex flex-wrap gap-2 min-h-[30px] p-2 bg-surface rounded-sm border border-outline-variant/50" id="mod-tags-container-${idx}">
+                                        ${(item.linkedModules || (item.oopCode ? [item.oopCode] : [])).map(modCode => {
+                                            const modInfo = allAvailableModules.find(m => m.code === modCode);
+                                            const displayName = modInfo ? `${modInfo.name} [${modCode}]` : modCode;
+                                            return `
+                                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-primary-container/10 text-primary-fixed-dim text-xs border border-primary-container/30">
+                                                    ${displayName}
+                                                    <span class="cursor-pointer hover:text-error remove-mod-btn" data-idx="${idx}" data-code="${modCode}">×</span>
+                                                </span>
+                                            `;
+                                        }).join('')}
+                                        ${(item.linkedModules || (item.oopCode ? [item.oopCode] : [])).length === 0 ? '<span class="text-xs text-on-surface-variant/50 p-1">尚未關聯模組</span>' : ''}
                                     </div>
+                                </div>
+
+                                <!-- 3. 自定義標籤 -->
+                                <div class="space-y-1">
+                                    <label class="font-label-caps text-[8px] text-on-surface-variant">自定義標籤 (Tags)</label>
+                                    <input type="text" value="${item.tags || ''}" data-idx="${idx}" class="item-tags-input w-full bg-surface border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" placeholder="例：主角, 敵對">
                                 </div>
                             </div>
                         `).join('')}
                     </div>
-                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant"> 儲存${isActor ? '演員' : '場景'}池</button>
+                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-32">💾 儲存${isActor ? '演員' : '場景'}池</button>
                 </div>
             `;
+
+            // --- 事件綁定 ---
+            
+            // 1. 新增/刪除/儲存基礎邏輯
             document.getElementById('add-item-btn').onclick = () => {
-                list.push({ id: (isActor ? 'a_' : 's_') + Date.now(), name: '', oopCode: '', tags: '' });
+                list.push({ id: (isActor ? 'a_' : 's_') + Date.now(), name: '', description: '', linkedModules: [], tags: '' });
                 renderBookTabContent();
             };
+            
             document.getElementById('save-list-btn').onclick = () => {
                 content.querySelectorAll('.item-name-input').forEach(inp => list[inp.dataset.idx].name = inp.value);
-                content.querySelectorAll('.item-oop-select').forEach(sel => list[sel.dataset.idx].oopCode = sel.value);
+                content.querySelectorAll('.item-desc-input').forEach(inp => list[inp.dataset.idx].description = inp.value);
                 content.querySelectorAll('.item-tags-input').forEach(inp => list[inp.dataset.idx].tags = inp.value);
                 saveBooksData();
                 alert('已儲存！');
             };
+
             content.querySelectorAll('.del-item-btn').forEach(btn => {
                 btn.onclick = () => { list.splice(btn.dataset.idx, 1); renderBookTabContent(); };
+            });
+
+            // 2. 移除單一模組 Tag
+            content.querySelectorAll('.remove-mod-btn').forEach(btn => {
+                btn.onclick = (e) => {
+                    const idx = e.target.dataset.idx;
+                    const code = e.target.dataset.code;
+                    if (!list[idx].linkedModules) list[idx].linkedModules = list[idx].oopCode ? [list[idx].oopCode] : [];
+                    list[idx].linkedModules = list[idx].linkedModules.filter(c => c !== code);
+                    renderBookTabContent();
+                };
+            });
+
+            // 3. 手動添加模組
+            content.querySelectorAll('.add-mod-btn').forEach(btn => {
+                btn.onclick = (e) => {
+                    const idx = e.target.dataset.idx;
+                    const code = prompt("請輸入要關聯的模組代碼 (例如 MOD_PERSONA_COLD):\n\n可用模組:\n" + allAvailableModules.map(m => `${m.code} (${m.name})`).join('\n'));
+                    if (code && allAvailableModules.find(m => m.code === code)) {
+                        if (!list[idx].linkedModules) list[idx].linkedModules = [];
+                        if (!list[idx].linkedModules.includes(code)) {
+                            list[idx].linkedModules.push(code);
+                            renderBookTabContent();
+                        } else {
+                            alert("該模組已存在！");
+                        }
+                    } else if (code) {
+                        alert("找不到該模組代碼，請檢查拼寫。");
+                    }
+                };
+            });
+
+            // 4. AUTOLINK 智能推薦邏輯
+            content.querySelectorAll('.autolink-btn').forEach(btn => {
+                btn.onclick = (e) => {
+                    const idx = e.target.dataset.idx;
+                    const item = list[idx];
+                    const desc = item.description || item.name;
+                    
+                    if (!desc) {
+                        alert("請先填寫「角色/場景描述」，AI 需要依據描述來推薦模組！");
+                        return;
+                    }
+
+                    const modListStr = allAvailableModules.map(m => `- ${m.code} : ${m.name}`).join('\n');
+                    const promptText = `【天道流 AUTOLINK 推薦請求】\n角色/場景描述：${desc}\n\n當前可用模組庫：\n${modListStr}\n\n任務：請根據描述，從模組庫中推薦最合適的模組代碼（一對多關聯）。\n請嚴格返回 JSON 陣列格式，例如：["CHAR_A_BASE", "MOD_PERSONA_COLD"]。\n不要返回其他內容，只返回 JSON。`;
+
+                    const modalHtml = `
+                        <div class="modal-overlay" id="autolink-modal">
+                            <div class="bg-surface border border-outline-variant rounded-sm w-full max-w-2xl p-6 space-y-4">
+                                <h3 class="font-label-caps text-sm text-primary-fixed-dim">✨ AUTOLINK 智能推薦</h3>
+                                <div class="space-y-2">
+                                    <label class="text-xs text-on-surface-variant">步驟 1：複製以下提示詞發送給 LLM</label>
+                                    <textarea readonly class="w-full bg-black/30 text-on-surface p-2 rounded text-xs h-32 font-mono">${promptText}</textarea>
+                                    <button id="copy-prompt-btn" class="bg-surface-container-high text-on-surface px-3 py-1 rounded text-xs">複製提示詞</button>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-xs text-on-surface-variant">步驟 2：將 LLM 返回的 JSON 結果貼上</label>
+                                    <textarea id="autolink-result-input" class="w-full bg-black/30 text-on-surface p-2 rounded text-xs h-20 font-mono" placeholder='例如：["CHAR_A_BASE", "MOD_PERSONA_COLD"]'></textarea>
+                                </div>
+                                <div class="flex justify-end gap-2 pt-2">
+                                    <button id="close-autolink-btn" class="bg-surface-container-high text-on-surface px-4 py-2 rounded text-xs">取消</button>
+                                    <button id="apply-autolink-btn" class="bg-primary-container text-on-primary-fixed px-4 py-2 rounded text-xs">載入並套用</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    const modalContainer = document.getElementById('modal-container');
+                    modalContainer.innerHTML = modalHtml;
+                    modalContainer.classList.remove('hidden');
+
+                    document.getElementById('copy-prompt-btn').onclick = () => {
+                        navigator.clipboard.writeText(promptText);
+                        alert('提示詞已複製！請去 LLM 對話框貼上並取得結果。');
+                    };
+                    
+                    document.getElementById('close-autolink-btn').onclick = () => {
+                        modalContainer.classList.add('hidden');
+                    };
+
+                    document.getElementById('apply-autolink-btn').onclick = () => {
+                        const resultStr = document.getElementById('autolink-result-input').value;
+                        try {
+                            const parsedCodes = JSON.parse(resultStr);
+                            if (Array.isArray(parsedCodes)) {
+                                list[idx].linkedModules = parsedCodes;
+                                modalContainer.classList.add('hidden');
+                                renderBookTabContent();
+                                alert(`成功載入 ${parsedCodes.length} 個推薦模組！`);
+                            } else {
+                                alert('格式錯誤：LLM 返回的不是陣列。');
+                            }
+                        } catch (e) {
+                            alert('JSON 解析失敗，請確認 LLM 返回的是標準 JSON 格式 (例如 ["CODE1", "CODE2"])。');
+                        }
+                    };
+                };
             });
         }
         else if (state.currentBookTab === 'chapters') {
@@ -660,7 +800,7 @@
                                         <td class="py-2 px-2">
                                             <select data-idx="${idx}" class="chap-status bg-surface border border-outline text-on-surface px-1 py-0.5 rounded-sm text-[10px]">
                                                 <option value="Draft" ${ch.status === 'Draft' ? 'selected' : ''}>📝 草稿</option>
-                                                <option value="In-Progress" ${ch.status === 'In-Progress' ? 'selected' : ''}>️ 進行中</option>
+                                                <option value="In-Progress" ${ch.status === 'In-Progress' ? 'selected' : ''}>⚙️ 進行中</option>
                                                 <option value="Completed" ${ch.status === 'Completed' ? 'selected' : ''}>✅ 已完成</option>
                                             </select>
                                         </td>
@@ -670,7 +810,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <button id="save-chaps-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant"> 儲存章節列表</button>
+                    <button id="save-chaps-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-32"> 儲存章節列表</button>
                 </div>
             `;
             document.getElementById('add-chap-btn').onclick = () => {
@@ -762,7 +902,7 @@
     function renderOutlineView(container) {
         const book = getCurrentBook();
         if (!book) {
-            container.innerHTML = `<div class="p-gutter text-center text-on-surface-variant py-10 font-data-md">⚠️ 請先在【Books】頁籤建立書籍並設定演員/場景總表，否則 Outline 將無法帶出實例。</div>`;
+            container.innerHTML = `<div class="p-gutter text-center text-on-surface-variant py-10 font-data-md pb-40">⚠️ 請先在【Books】頁籤建立書籍並設定演員/場景總表，否則 Outline 將無法帶出實例。</div>`;
             return;
         }
 
@@ -961,6 +1101,3 @@
 </script>
 </body>
 </html>
-
-
-
