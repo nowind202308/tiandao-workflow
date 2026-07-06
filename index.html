@@ -559,7 +559,7 @@
                 cfg.wordCount = parseInt(document.getElementById('cfg-words').value) || 5000;
                 saveBooksData();
                 const prompt = `【大綱生成指令】\n請為故事《${book.title}》生成一份總體大綱。\n- 風格：${book.style}\n- 總章節數：${cfg.totalChapters}\n- 主要演員人數：${cfg.mainActors}\n\n
-                請輸出 JSON 格式的章節規劃，包含章節編號、章節名稱，並嚴格按照【起】、【承】、【轉】、【合】四個階段每階段約 ${cfg.wordCount} 字`;
+                請輸出 JSON 格式的章節規劃，包含章節編號、章節編號、章節版次，每章節分為【起】、【承】、【轉】、【合】四個段落，並嚴格按照【起】、【承】、【轉】、【合】四個段落每段落約 ${cfg.wordCount} 字撰寫核心事件摘要。`;
                 navigator.clipboard.writeText(prompt);
                 alert('大綱提問詞已複製！請貼至 LLM 生成大綱。');
             };
