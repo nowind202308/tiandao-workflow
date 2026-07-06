@@ -21,13 +21,20 @@
         ::-webkit-scrollbar-track { background: #080f10; }
         ::-webkit-scrollbar-thumb { background: #3a494b; border-radius: 2px; }
         
-        #main-app-content { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+        #main-app-content { opacity: 0; pointer-events: none; transition: opacity 0.5s ease, margin-bottom 0.3s ease; }
         #main-app-content.unlocked { opacity: 1; pointer-events: auto; }
         .secure-mask { position: fixed; inset: 0; background: #080f10; z-index: 40; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #00dbe7; font-family: 'JetBrains Mono', monospace; font-size: 12px; transition: opacity 0.5s ease; gap: 10px; }
         .secure-mask.hidden-mask { opacity: 0; pointer-events: none; }
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
         .tab-active { border-bottom: 2px solid #00f2ff; color: #00f2ff; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+        /* === 新增：導航選單收起/展開動畫 === */
+        #main-nav { transform: translateY(0); transition: transform 0.3s ease-in-out; }
+        #main-nav.nav-hidden { transform: translateY(100%); }
+        #nav-expanded { opacity: 1; transition: opacity 0.3s ease; }
+        #nav-collapsed { opacity: 0; transform: scale(0.5); transition: opacity 0.3s ease, transform 0.3s ease; }
+        #nav-collapsed.show { opacity: 1; transform: scale(1); }
     </style>
 
     <script id="tailwind-config">
@@ -82,27 +89,44 @@
     <div id="view-container" class="flex-1 flex flex-col"></div>
 </div>
 
-<nav class="fixed bottom-0 w-full h-16 bg-surface-container border-t border-outline-variant flex items-center justify-around px-2 z-50">
-    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="system">
-        <span class="material-symbols-outlined text-[20px]">settings_input_component</span>
-        <span class="font-label-caps text-[8px] uppercase">System</span>
-    </button>
-    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="books">
-        <span class="material-symbols-outlined text-[20px]">library_books</span>
-        <span class="font-label-caps text-[8px] uppercase">Books</span>
-    </button>
-    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="modules">
-        <span class="material-symbols-outlined text-[20px]">database</span>
-        <span class="font-label-caps text-[8px] uppercase">Modules</span>
-    </button>
-    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="outline">
-        <span class="material-symbols-outlined text-[20px]">edit_document</span>
-        <span class="font-label-caps text-[8px] uppercase">Outline</span>
-    </button>
-    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="triggers">
-        <span class="material-symbols-outlined text-[20px]">psychology</span>
-        <span class="font-label-caps text-[8px] uppercase">Triggers</span>
-    </button>
+<!-- === 修改：可收起導航選單 === -->
+<nav id="main-nav" class="fixed bottom-0 w-full z-50 transition-all duration-300 ease-in-out">
+    <!-- 展開狀態：完整選單 -->
+    <div id="nav-expanded" class="h-16 bg-surface-container border-t border-outline-variant flex items-center px-2 relative">
+        <div class="flex items-center justify-around flex-1">
+            <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="system">
+                <span class="material-symbols-outlined text-[20px]">settings_input_component</span>
+                <span class="font-label-caps text-[8px] uppercase">System</span>
+            </button>
+            <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="books">
+                <span class="material-symbols-outlined text-[20px]">library_books</span>
+                <span class="font-label-caps text-[8px] uppercase">Books</span>
+            </button>
+            <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="modules">
+                <span class="material-symbols-outlined text-[20px]">database</span>
+                <span class="font-label-caps text-[8px] uppercase">Modules</span>
+            </button>
+            <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="outline">
+                <span class="material-symbols-outlined text-[20px]">edit_document</span>
+                <span class="font-label-caps text-[8px] uppercase">Outline</span>
+            </button>
+            <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="triggers">
+                <span class="material-symbols-outlined text-[20px]">psychology</span>
+                <span class="font-label-caps text-[8px] uppercase">Triggers</span>
+            </button>
+        </div>
+        <!-- 收起按鈕（位於選單右側） -->
+        <button id="nav-collapse-btn" class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant hover:bg-primary-container hover:text-on-primary-fixed flex items-center justify-center transition-all" title="收起選單">
+            <span class="material-symbols-outlined text-[18px]">keyboard_arrow_down</span>
+        </button>
+    </div>
+    
+    <!-- 收起狀態：浮動展開按鈕 (FAB) -->
+    <div id="nav-collapsed" class="hidden fixed bottom-4 right-4 z-50">
+        <button id="nav-expand-btn" class="w-14 h-14 rounded-full bg-primary-container text-on-primary-fixed shadow-2xl flex items-center justify-center cyan-glow hover:scale-110 active:scale-95 transition-transform" title="展開選單">
+            <span class="material-symbols-outlined text-[28px]">menu</span>
+        </button>
+    </div>
 </nav>
 
 <div id="modal-container" class="hidden"></div>
@@ -133,7 +157,8 @@
         },
         currentView: 'system',
         currentTab: 0,
-        isInitialized: false
+        isInitialized: false,
+        navCollapsed: false // === 新增：選單收起狀態 ===
     };
 
     // --- Google API Initialization ---
@@ -905,8 +930,37 @@
     });
     document.getElementById('logout-btn').addEventListener('click', () => { localStorage.removeItem('tdf_access_token'); gapi.client.setToken(null); location.reload(); });
     document.querySelectorAll('.nav-btn').forEach(btn => { btn.onclick = () => { state.currentView = btn.dataset.view; renderCurrentView(); }; });
+    
+    // === 新增：導航選單收起/展開邏輯 ===
+    function toggleNav(collapse) {
+        const expanded = document.getElementById('nav-expanded');
+        const collapsed = document.getElementById('nav-collapsed');
+        const mainContent = document.getElementById('main-app-content');
+        
+        if (collapse) {
+            // 收起選單
+            expanded.style.display = 'none';
+            collapsed.classList.remove('hidden');
+            setTimeout(() => collapsed.classList.add('show'), 10);
+            mainContent.classList.remove('mb-16');
+            mainContent.classList.add('mb-2');
+            state.navCollapsed = true;
+        } else {
+            // 展開選單
+            collapsed.classList.remove('show');
+            setTimeout(() => {
+                collapsed.classList.add('hidden');
+                expanded.style.display = 'flex';
+            }, 250);
+            mainContent.classList.add('mb-16');
+            mainContent.classList.remove('mb-2');
+            state.navCollapsed = false;
+        }
+    }
+    document.getElementById('nav-collapse-btn').addEventListener('click', () => toggleNav(true));
+    document.getElementById('nav-expand-btn').addEventListener('click', () => toggleNav(false));
+
     window.onload = () => { gapiLoaded(); gisLoaded(); };
 </script>
 </body>
 </html>
-
