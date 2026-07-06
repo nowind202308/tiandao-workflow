@@ -564,7 +564,9 @@
         else if (state.currentBookTab === 'actors' || state.currentBookTab === 'scenes') {
             const isActor = state.currentBookTab === 'actors';
             const list = isActor ? book.actors : book.scenes;
-            const oopModules = state.moduleData[isActor ? 'Inst_Char' : 'Inst_Scene'] || [];
+            // V3.0 OOP 哲學：實例 (Inst) 應該繼承 原型 (Arch)
+            const archetypeKey = isActor ? 'Arch_Body' : 'Arch_Env';
+            const oopModules = state.moduleData[archetypeKey] || [];
             
             content.innerHTML = `
                 <div class="glass-panel p-4 space-y-4 rounded-sm">
@@ -581,7 +583,7 @@
                                 </div>
                                 <div class="grid grid-cols-2 gap-2">
                                     <div class="space-y-1">
-                                        <label class="font-label-caps text-[8px] text-on-surface-variant">OOP 模組關聯 (Templates)</label>
+                                        <label class="font-label-caps text-[8px] text-on-surface-variant">繼承原型 (Archetype)</label>
                                         <select data-idx="${idx}" class="item-oop-select w-full bg-surface border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]">
                                             <option value="">(無綁定)</option>
                                             ${oopModules.map(m => `<option value="${m.code}" ${item.oopCode === m.code ? 'selected' : ''}>${m.name} [${m.code}]</option>`).join('')}
