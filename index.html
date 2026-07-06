@@ -554,7 +554,7 @@
                         <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">故事風格 (Style)</label><input type="text" id="b-style" value="${book.style}" placeholder="例：賽博龐克 / 懸疑" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                         <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">大綱字數限制</label><input type="number" id="b-para-word" value="${book.paragraphWordCount}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                     </div>
-                    <button id="save-meta-btn" class="bg-primary-container text-on-primary-fixed px-4 py-2 rounded-sm font-label-caps text-xs">💾 儲存設定</button>
+                    <button id="save-meta-btn" class="bg-primary-container text-on-primary-fixed px-4 py-2 rounded-sm font-label-caps text-xs mb-32">💾 儲存設定</button>
                 </div>
             `;
             document.getElementById('save-meta-btn').onclick = () => {
@@ -623,7 +623,7 @@
                             </div>
                         `).join('')}
                     </div>
-                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">💾 儲存${isActor ? '演員' : '場景'}池</button>
+                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-32">💾 儲存${isActor ? '演員' : '場景'}池</button>
                 </div>
             `;
             document.getElementById('add-item-btn').onclick = () => {
@@ -671,7 +671,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <button id="save-chaps-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant"> 儲存章節列表</button>
+                    <button id="save-chaps-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-32"> 儲存章節列表</button>
                 </div>
             `;
             document.getElementById('add-chap-btn').onclick = () => {
