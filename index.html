@@ -58,7 +58,7 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.4.001)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.001)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
@@ -83,21 +83,25 @@
 </div>
 
 <nav class="fixed bottom-0 w-full h-16 bg-surface-container border-t border-outline-variant flex items-center justify-around px-2 z-50">
-    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3" data-view="system">
-        <span class="material-symbols-outlined text-[22px]">settings_input_component</span>
-        <span class="font-label-caps text-[9px] uppercase">System</span>
+    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="system">
+        <span class="material-symbols-outlined text-[20px]">settings_input_component</span>
+        <span class="font-label-caps text-[8px] uppercase">System</span>
     </button>
-    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3" data-view="modules">
-        <span class="material-symbols-outlined text-[22px]">database</span>
-        <span class="font-label-caps text-[9px] uppercase">Modules</span>
+    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="books">
+        <span class="material-symbols-outlined text-[20px]">library_books</span>
+        <span class="font-label-caps text-[8px] uppercase">Books</span>
     </button>
-    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3" data-view="outline">
-        <span class="material-symbols-outlined text-[22px]">edit_document</span>
-        <span class="font-label-caps text-[9px] uppercase">Outline</span>
+    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="modules">
+        <span class="material-symbols-outlined text-[20px]">database</span>
+        <span class="font-label-caps text-[8px] uppercase">Modules</span>
     </button>
-    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-3" data-view="triggers">
-        <span class="material-symbols-outlined text-[22px]">psychology</span>
-        <span class="font-label-caps text-[9px] uppercase">Triggers</span>
+    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="outline">
+        <span class="material-symbols-outlined text-[20px]">edit_document</span>
+        <span class="font-label-caps text-[8px] uppercase">Outline</span>
+    </button>
+    <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="triggers">
+        <span class="material-symbols-outlined text-[20px]">psychology</span>
+        <span class="font-label-caps text-[8px] uppercase">Triggers</span>
     </button>
 </nav>
 
@@ -109,7 +113,8 @@
         SCOPES: 'https://www.googleapis.com/auth/drive',
         DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
         WORKSPACE_ROOT: 'TianDao_Workspace',
-        CONFIG_FILE: 'TianDao_Config.json'
+        CONFIG_FILE: 'TianDao_Config.json',
+        BOOKS_FILE: 'Books_Data.json'
     };
 
     const state = {
@@ -117,11 +122,14 @@
         driveIds: { root: null },
         config: null,
         moduleData: {}, 
+        booksFileId: null,
+        books: [], 
+        currentBookId: null,
+        currentBookTab: 'meta',
         outlineData: {
             chapter: '001', version: 'V1.0', coreEvent: '',
-            chapterSummaryRequirement: '', // [NEW] 本章總結需求調整
-            previousSummary: '', // [NEW] 前章總結參考依據
-            tabs: Array(4).fill(null).map(() => ({ scene: '', hook: '', actionText: '', characters: {} })) // [NEW] hook
+            chapterSummaryRequirement: '', previousSummary: '',
+            tabs: Array(4).fill(null).map(() => ({ scene: '', hook: '', actionText: '', characters: {} }))
         },
         currentView: 'system',
         currentTab: 0,
@@ -143,7 +151,6 @@
         attemptAutoLogin();
     }
 
-    // --- Session Management ---
     function handleTokenResponse(resp) {
         if (resp.error !== undefined) throw (resp);
         localStorage.setItem('tdf_access_token', resp.access_token);
@@ -181,6 +188,9 @@
             document.getElementById('mask-status').innerText = 'LOADING_MODULES...';
             await ModuleLoader.loadAll();
         }
+
+        document.getElementById('mask-status').innerText = 'SYNCING_BOOKS...';
+        await loadBooksData();
         
         document.getElementById('secure-mask').classList.add('hidden-mask');
         document.getElementById('main-app-content').classList.add('unlocked');
@@ -206,10 +216,10 @@
         },
         async createFile(name, parentId, content) {
             const token = gapi.client.getToken().access_token;
-            const metadata = { name, parents: parentId ? [parentId] : [], mimeType: 'text/plain' };
+            const metadata = { name, parents: parentId ? [parentId] : [], mimeType: 'application/json' };
             const form = new FormData();
             form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-            form.append('file', new Blob([content], { type: 'text/plain' }));
+            form.append('file', new Blob([content], { type: 'application/json' }));
             const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
                 method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: form
             });
@@ -221,10 +231,10 @@
         },
         async updateFile(fileId, content) {
             const token = gapi.client.getToken().access_token;
-            const metadata = { mimeType: 'text/plain' };
+            const metadata = { mimeType: 'application/json' };
             const form = new FormData();
             form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-            form.append('file', new Blob([content], { type: 'text/plain' }));
+            form.append('file', new Blob([content], { type: 'application/json' }));
             const resp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
                 method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` }, body: form
             });
@@ -236,6 +246,63 @@
             return resp.result.files || [];
         }
     };
+
+    // --- Books Data Management ---
+    async function loadBooksData() {
+        const fileId = await DriveAPI.findId(TDF_CONFIG.BOOKS_FILE, state.driveIds.root, false);
+        if (fileId) {
+            state.booksFileId = fileId;
+            const content = await DriveAPI.getFileContent(fileId);
+            state.books = JSON.parse(content);
+            if (state.books.length > 0 && !state.currentBookId) {
+                state.currentBookId = state.books[0].id;
+            }
+        } else {
+            state.books = [];
+        }
+    }
+
+    async function saveBooksData() {
+        const jsonStr = JSON.stringify(state.books, null, 2);
+        if (state.booksFileId) {
+            await DriveAPI.updateFile(state.booksFileId, jsonStr);
+        } else {
+            const res = await DriveAPI.createFile(TDF_CONFIG.BOOKS_FILE, state.driveIds.root, jsonStr);
+            state.booksFileId = res.id;
+        }
+        alert('書籍數據已同步至雲端！');
+    }
+
+    function getCurrentBook() {
+        return state.books.find(b => b.id === state.currentBookId);
+    }
+
+    function createNewBook() {
+        const name = prompt('請輸入新書名稱：');
+        if (!name) return;
+        const newBook = {
+            id: 'book_' + Date.now(),
+            title: name,
+            style: '賽博龐克 / 懸疑',
+            paragraphWordCount: 800,
+            actors: [],
+            scenes: [],
+            chapters: [],
+            outlinePromptConfig: { totalChapters: 10, mainActors: 3, wordCount: 5000 }
+        };
+        state.books.push(newBook);
+        state.currentBookId = newBook.id;
+        saveBooksData();
+        renderCurrentView();
+    }
+
+    function deleteCurrentBook() {
+        if (!confirm('確定要刪除當前書籍及其所有設定嗎？此操作不可復原。')) return;
+        state.books = state.books.filter(b => b.id !== state.currentBookId);
+        state.currentBookId = state.books.length > 0 ? state.books[0].id : null;
+        saveBooksData();
+        renderCurrentView();
+    }
 
     // --- Module Loader & Parser ---
     const ModuleLoader = {
@@ -259,22 +326,17 @@
         async loadAll() {
             if (!state.config || !state.driveIds.root) return;
             state.moduleData = {};
-            
             for (const cat of state.config.categories) {
                 let currentParentId = state.driveIds.root;
                 let validPath = true;
-                
                 for (const folderName of cat.path) {
                     const id = await DriveAPI.findId(folderName, currentParentId, true);
                     if (!id) { validPath = false; break; }
                     currentParentId = id;
                 }
-
                 if (!validPath) continue;
-
                 const files = await DriveAPI.listFiles(currentParentId);
                 state.moduleData[cat.key] = [];
-                
                 for (const file of files) {
                     if (file.name.endsWith('.txt') && file.name !== 'README.txt') {
                         try {
@@ -294,7 +356,6 @@
     async function initializeEnvironment() {
         const mask = document.getElementById('mask-status');
         mask.innerText = 'INITIALIZING_STRUCTURE...';
-        
         const createStructure = async (node, parentId) => {
             for (const [key, value] of Object.entries(node)) {
                 mask.innerText = `SYNCING ${key}...`;
@@ -303,7 +364,6 @@
                     const res = await DriveAPI.createFolder(key, parentId);
                     currentId = res.id;
                 }
-                
                 if (Array.isArray(value)) {
                     for (const fileName of value) {
                         if (!(await DriveAPI.findId(fileName, currentId, false))) {
@@ -316,7 +376,6 @@
                 }
             }
         };
-
         await createStructure(state.config.structure, state.driveIds.root);
         state.isInitialized = true;
         await ModuleLoader.loadAll();
@@ -339,6 +398,7 @@
 
         switch (state.currentView) {
             case 'system': renderSystemView(container); break;
+            case 'books': renderBooksView(container); break;
             case 'modules': renderModulesView(container); break;
             case 'outline': renderOutlineView(container); break;
             case 'triggers': renderTriggersView(container); break;
@@ -350,30 +410,17 @@
             renderUploadConfigView(container);
             return;
         }
-
         container.innerHTML = `
             <div class="p-gutter space-y-4">
                 <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">專案環境狀態</h2>
                 <div class="glass-panel p-4 rounded-sm space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="font-data-md text-sm">Root Workspace:</span>
-                        <span class="font-data-md text-sm ${state.driveIds.root ? 'text-green-400' : 'text-error'}">${state.driveIds.root || 'NOT FOUND'}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="font-data-md text-sm">Config Version:</span>
-                        <span class="font-data-md text-sm text-primary-fixed-dim">${state.config.version || 'Unknown'}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="font-data-md text-sm">Total Modules Loaded:</span>
-                        <span class="font-data-md text-sm text-primary-fixed-dim">${Object.values(state.moduleData).reduce((a, b) => a + b.length, 0)}</span>
-                    </div>
+                    <div class="flex justify-between items-center"><span class="font-data-md text-sm">Root Workspace:</span><span class="font-data-md text-sm ${state.driveIds.root ? 'text-green-400' : 'text-error'}">${state.driveIds.root || 'NOT FOUND'}</span></div>
+                    <div class="flex justify-between items-center"><span class="font-data-md text-sm">Config Version:</span><span class="font-data-md text-sm text-primary-fixed-dim">${state.config.version || 'Unknown'}</span></div>
+                    <div class="flex justify-between items-center"><span class="font-data-md text-sm">Total Modules:</span><span class="font-data-md text-sm text-primary-fixed-dim">${Object.values(state.moduleData).reduce((a, b) => a + b.length, 0)}</span></div>
+                    <div class="flex justify-between items-center"><span class="font-data-md text-sm">Total Books:</span><span class="font-data-md text-sm text-primary-fixed-dim">${state.books.length}</span></div>
                 </div>
-                <button id="init-btn" class="w-full bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow">
-                    <span class="material-symbols-outlined">rocket_launch</span> 一鍵初始化專案環境
-                </button>
-                <button id="reload-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant">
-                    🔄 重新載入模組庫
-                </button>
+                <button id="init-btn" class="w-full bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow"><span class="material-symbols-outlined">rocket_launch</span> 一鍵初始化專案環境</button>
+                <button id="reload-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant">🔄 重新載入模組庫</button>
             </div>
         `;
         document.getElementById('init-btn').onclick = async () => {
@@ -382,10 +429,7 @@
             await initializeEnvironment();
             document.getElementById('secure-mask').classList.add('hidden-mask');
         };
-        document.getElementById('reload-btn').onclick = async () => {
-            await ModuleLoader.loadAll();
-            renderCurrentView();
-        };
+        document.getElementById('reload-btn').onclick = async () => { await ModuleLoader.loadAll(); renderCurrentView(); };
     }
 
     function renderUploadConfigView(container) {
@@ -397,17 +441,12 @@
                     <p class="font-data-md text-sm text-on-surface-variant">請上傳 <code class="bg-surface-container-high px-1 rounded">TianDao_Config.json</code> 以初始化環境。</p>
                 </div>
                 <input type="file" id="config-file-input" accept=".json" class="hidden">
-                <button id="upload-config-btn" class="bg-primary-container text-on-primary-fixed px-6 py-3 rounded-sm font-label-caps text-sm flex items-center gap-2 cyan-glow">
-                    <span class="material-symbols-outlined">upload_file</span> 選擇配置檔並上傳
-                </button>
+                <button id="upload-config-btn" class="bg-primary-container text-on-primary-fixed px-6 py-3 rounded-sm font-label-caps text-sm flex items-center gap-2 cyan-glow"><span class="material-symbols-outlined">upload_file</span> 選擇配置檔並上傳</button>
             </div>
         `;
-        document.getElementById('upload-config-btn').onclick = () => {
-            document.getElementById('config-file-input').click();
-        };
+        document.getElementById('upload-config-btn').onclick = () => document.getElementById('config-file-input').click();
         document.getElementById('config-file-input').onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            const file = e.target.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = async (event) => {
                 try {
@@ -417,14 +456,215 @@
                     await DriveAPI.createFile(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, JSON.stringify(state.config, null, 2));
                     await initializeEnvironment();
                     document.getElementById('secure-mask').classList.add('hidden-mask');
-                } catch (err) {
-                    alert('配置檔解析失敗：' + err.message);
-                }
+                } catch (err) { alert('配置檔解析失敗：' + err.message); }
             };
             reader.readAsText(file);
         };
     }
 
+    // --- Books View (NEW) ---
+    function renderBooksView(container) {
+        const book = getCurrentBook();
+        const tabs = [
+            { id: 'meta', label: '故事設定', icon: 'info' },
+            { id: 'plan', label: '大綱規劃', icon: 'auto_awesome' },
+            { id: 'actors', label: '演員池', icon: 'group' },
+            { id: 'scenes', label: '場景池', icon: 'landscape' },
+            { id: 'chapters', label: '章節列表', icon: 'list_alt' }
+        ];
+
+        let html = `
+            <div class="p-gutter space-y-4">
+                <div class="flex justify-between items-center border-b border-outline-variant pb-3">
+                    <div class="flex items-center gap-3">
+                        <select id="book-selector" class="bg-surface-container-high border border-outline text-on-surface px-3 py-2 rounded-sm font-data-md text-sm">
+                            ${state.books.map(b => `<option value="${b.id}" ${b.id === state.currentBookId ? 'selected' : ''}>${b.title}</option>`).join('')}
+                            ${state.books.length === 0 ? '<option value="">(無書籍)</option>' : ''}
+                        </select>
+                        <button id="new-book-btn" class="bg-primary-container text-on-primary-fixed px-3 py-2 rounded-sm font-label-caps text-xs flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">add</span> 新增</button>
+                        <button id="del-book-btn" class="bg-error-container text-on-error-container px-3 py-2 rounded-sm font-label-caps text-xs ${!book ? 'opacity-50 cursor-not-allowed' : ''}">刪除</button>
+                    </div>
+                    <button id="save-books-btn" class="bg-surface-container-high text-on-surface px-4 py-2 rounded-sm font-label-caps text-xs border border-outline-variant flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">cloud_upload</span> 同步雲端</button>
+                </div>
+
+                ${!book ? '<div class="text-center text-on-surface-variant py-10 font-data-md">請先新增或選擇一本書籍以進行設定。</div>' : `
+                    <div class="flex border-b border-outline-variant overflow-x-auto hide-scrollbar">
+                        ${tabs.map(t => `
+                            <button class="book-tab-btn flex items-center gap-1 px-4 py-2 font-label-caps text-xs whitespace-nowrap ${state.currentBookTab === t.id ? 'tab-active' : 'text-on-surface-variant'}" data-tab="${t.id}">
+                                <span class="material-symbols-outlined text-[16px]">${t.icon}</span> ${t.label}
+                            </button>
+                        `).join('')}
+                    </div>
+                    <div id="book-tab-content" class="space-y-4"></div>
+                `}
+            </div>
+        `;
+        container.innerHTML = html;
+
+        if (book) {
+            document.getElementById('book-selector').onchange = (e) => { state.currentBookId = e.target.value; renderCurrentView(); };
+            document.getElementById('new-book-btn').onclick = createNewBook;
+            document.getElementById('del-book-btn').onclick = deleteCurrentBook;
+            document.getElementById('save-books-btn').onclick = saveBooksData;
+            document.querySelectorAll('.book-tab-btn').forEach(btn => {
+                btn.onclick = () => { state.currentBookTab = btn.dataset.tab; renderCurrentView(); };
+            });
+            renderBookTabContent();
+        }
+    }
+
+    function renderBookTabContent() {
+        const content = document.getElementById('book-tab-content');
+        const book = getCurrentBook();
+        if (!book) return;
+
+        if (state.currentBookTab === 'meta') {
+            content.innerHTML = `
+                <div class="glass-panel p-4 space-y-4 rounded-sm">
+                    <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">故事元數據 (Meta Data)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">故事名稱</label><input type="text" id="b-title" value="${book.title}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
+                        <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">故事風格 (Style)</label><input type="text" id="b-style" value="${book.style}" placeholder="例：賽博龐克 / 懸疑" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
+                        <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">段落字數限制</label><input type="number" id="b-para-word" value="${book.paragraphWordCount}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
+                    </div>
+                    <button id="save-meta-btn" class="bg-primary-container text-on-primary-fixed px-4 py-2 rounded-sm font-label-caps text-xs">💾 儲存設定</button>
+                </div>
+            `;
+            document.getElementById('save-meta-btn').onclick = () => {
+                book.title = document.getElementById('b-title').value;
+                book.style = document.getElementById('b-style').value;
+                book.paragraphWordCount = parseInt(document.getElementById('b-para-word').value) || 800;
+                saveBooksData();
+                renderCurrentView();
+            };
+        } 
+        else if (state.currentBookTab === 'plan') {
+            const cfg = book.outlinePromptConfig;
+            content.innerHTML = `
+                <div class="glass-panel p-4 space-y-4 rounded-sm">
+                    <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">大綱生成提問詞配置</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">設定章節總數</label><input type="number" id="cfg-chaps" value="${cfg.totalChapters}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
+                        <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">設定主要演員人數</label><input type="number" id="cfg-actors" value="${cfg.mainActors}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
+                        <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">設定大綱字數</label><input type="number" id="cfg-words" value="${cfg.wordCount}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
+                    </div>
+                    <button id="gen-prompt-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2"><span class="material-symbols-outlined">auto_awesome</span> 產生大綱提問詞 (複製至剪貼簿)</button>
+                </div>
+            `;
+            document.getElementById('gen-prompt-btn').onclick = () => {
+                cfg.totalChapters = parseInt(document.getElementById('cfg-chaps').value) || 10;
+                cfg.mainActors = parseInt(document.getElementById('cfg-actors').value) || 3;
+                cfg.wordCount = parseInt(document.getElementById('cfg-words').value) || 5000;
+                saveBooksData();
+                const prompt = `【大綱生成指令】\n請為故事《${book.title}》生成一份總體大綱。\n- 風格：${book.style}\n- 總章節數：${cfg.totalChapters}\n- 主要演員人數：${cfg.mainActors}\n- 大綱總字數：約 ${cfg.wordCount} 字\n\n請輸出 JSON 格式的章節規劃，包含章節編號、章節名稱、核心事件摘要。`;
+                navigator.clipboard.writeText(prompt);
+                alert('大綱提問詞已複製！請貼至 LLM 生成大綱。');
+            };
+        }
+        else if (state.currentBookTab === 'actors' || state.currentBookTab === 'scenes') {
+            const isActor = state.currentBookTab === 'actors';
+            const list = isActor ? book.actors : book.scenes;
+            const oopModules = state.moduleData[isActor ? 'Inst_Char' : 'Inst_Scene'] || [];
+            
+            content.innerHTML = `
+                <div class="glass-panel p-4 space-y-4 rounded-sm">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">${isActor ? '演員' : '場景'}總表與 OOP 關聯</h3>
+                        <button id="add-item-btn" class="bg-primary-container text-on-primary-fixed px-3 py-1.5 rounded-sm font-label-caps text-[10px] flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">add</span> 新增</button>
+                    </div>
+                    <div class="space-y-2">
+                        ${list.length === 0 ? '<div class="text-xs text-on-surface-variant">尚未設定，請點擊新增。</div>' : list.map((item, idx) => `
+                            <div class="bg-surface-container-high p-3 rounded-sm border border-outline-variant space-y-2">
+                                <div class="flex justify-between items-center">
+                                    <input type="text" value="${item.name}" data-idx="${idx}" class="item-name-input flex-1 bg-transparent border-b border-outline text-on-surface font-data-md text-sm focus:outline-none focus:border-primary-fixed-dim" placeholder="${isActor ? '演員名稱' : '場景名稱'}">
+                                    <button data-idx="${idx}" class="del-item-btn text-error hover:bg-error-container/20 p-1 rounded"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="space-y-1">
+                                        <label class="font-label-caps text-[8px] text-on-surface-variant">OOP 模組關聯 (Templates)</label>
+                                        <select data-idx="${idx}" class="item-oop-select w-full bg-surface border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]">
+                                            <option value="">(無綁定)</option>
+                                            ${oopModules.map(m => `<option value="${m.code}" ${item.oopCode === m.code ? 'selected' : ''}>${m.name} [${m.code}]</option>`).join('')}
+                                        </select>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="font-label-caps text-[8px] text-on-surface-variant">自定義標籤 (Tags)</label>
+                                        <input type="text" value="${item.tags || ''}" data-idx="${idx}" class="item-tags-input w-full bg-surface border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" placeholder="例：主角, 敵對">
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">💾 儲存${isActor ? '演員' : '場景'}池</button>
+                </div>
+            `;
+            document.getElementById('add-item-btn').onclick = () => {
+                list.push({ id: (isActor ? 'a_' : 's_') + Date.now(), name: '', oopCode: '', tags: '' });
+                renderBookTabContent();
+            };
+            document.getElementById('save-list-btn').onclick = () => {
+                content.querySelectorAll('.item-name-input').forEach(inp => list[inp.dataset.idx].name = inp.value);
+                content.querySelectorAll('.item-oop-select').forEach(sel => list[sel.dataset.idx].oopCode = sel.value);
+                content.querySelectorAll('.item-tags-input').forEach(inp => list[inp.dataset.idx].tags = inp.value);
+                saveBooksData();
+                alert('已儲存！');
+            };
+            content.querySelectorAll('.del-item-btn').forEach(btn => {
+                btn.onclick = () => { list.splice(btn.dataset.idx, 1); renderBookTabContent(); };
+            });
+        }
+        else if (state.currentBookTab === 'chapters') {
+            content.innerHTML = `
+                <div class="glass-panel p-4 space-y-4 rounded-sm">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">總章節列表 (狀態機)</h3>
+                        <button id="add-chap-btn" class="bg-primary-container text-on-primary-fixed px-3 py-1.5 rounded-sm font-label-caps text-[10px] flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">add</span> 新增章節</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left font-data-md text-xs">
+                            <thead class="border-b border-outline-variant text-on-surface-variant">
+                                <tr><th class="py-2 px-2">編號</th><th class="py-2 px-2">章節名稱</th><th class="py-2 px-2">當前狀態</th><th class="py-2 px-2">操作</th></tr>
+                            </thead>
+                            <tbody>
+                                ${book.chapters.length === 0 ? '<tr><td colspan="4" class="py-4 text-center text-on-surface-variant">尚無章節</td></tr>' : book.chapters.map((ch, idx) => `
+                                    <tr class="border-b border-outline-variant/50 hover:bg-surface-container-highest">
+                                        <td class="py-2 px-2"><input type="text" value="${ch.number}" data-idx="${idx}" class="chap-num w-16 bg-transparent border-b border-outline text-on-surface focus:outline-none focus:border-primary-fixed-dim"></td>
+                                        <td class="py-2 px-2"><input type="text" value="${ch.name}" data-idx="${idx}" class="chap-name flex-1 bg-transparent border-b border-outline text-on-surface w-full focus:outline-none focus:border-primary-fixed-dim"></td>
+                                        <td class="py-2 px-2">
+                                            <select data-idx="${idx}" class="chap-status bg-surface border border-outline text-on-surface px-1 py-0.5 rounded-sm text-[10px]">
+                                                <option value="Draft" ${ch.status === 'Draft' ? 'selected' : ''}>📝 草稿</option>
+                                                <option value="In-Progress" ${ch.status === 'In-Progress' ? 'selected' : ''}>⚙️ 進行中</option>
+                                                <option value="Completed" ${ch.status === 'Completed' ? 'selected' : ''}>✅ 已完成</option>
+                                            </select>
+                                        </td>
+                                        <td class="py-2 px-2"><button data-idx="${idx}" class="del-chap-btn text-error hover:bg-error-container/20 p-1 rounded"><span class="material-symbols-outlined text-[16px]">delete</span></button></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <button id="save-chaps-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">💾 儲存章節列表</button>
+                </div>
+            `;
+            document.getElementById('add-chap-btn').onclick = () => {
+                const nextNum = String(book.chapters.length + 1).padStart(3, '0');
+                book.chapters.push({ id: 'c_' + Date.now(), number: nextNum, name: `第 ${nextNum} 章`, status: 'Draft' });
+                renderBookTabContent();
+            };
+            document.getElementById('save-chaps-btn').onclick = () => {
+                content.querySelectorAll('.chap-num').forEach(inp => book.chapters[inp.dataset.idx].number = inp.value);
+                content.querySelectorAll('.chap-name').forEach(inp => book.chapters[inp.dataset.idx].name = inp.value);
+                content.querySelectorAll('.chap-status').forEach(sel => book.chapters[sel.dataset.idx].status = sel.value);
+                saveBooksData();
+                alert('章節列表已更新！');
+            };
+            content.querySelectorAll('.del-chap-btn').forEach(btn => {
+                btn.onclick = () => { book.chapters.splice(btn.dataset.idx, 1); renderBookTabContent(); };
+            });
+        }
+    }
+
+    // --- Modules View ---
     function renderModulesView(container) {
         let html = `<div class="p-gutter space-y-4">`;
         for (const cat of state.config.categories) {
@@ -436,10 +676,7 @@
                         ${mods.length === 0 ? '<div class="text-xs text-on-surface-variant glass-panel p-2 rounded">無模組</div>' : 
                         mods.map(m => `
                             <div class="glass-panel p-3 rounded-sm flex justify-between items-center cursor-pointer hover:bg-surface-container-highest transition-colors module-item" data-id="${m.code}" data-cat="${cat.key}">
-                                <div>
-                                    <div class="font-data-md text-sm text-on-surface">${m.name}</div>
-                                    <div class="font-label-caps text-[8px] text-outline uppercase">${m.code}</div>
-                                </div>
+                                <div><div class="font-data-md text-sm text-on-surface">${m.name}</div><div class="font-label-caps text-[8px] text-outline uppercase">${m.code}</div></div>
                                 <span class="material-symbols-outlined text-outline text-[18px]">edit</span>
                             </div>
                         `).join('')}
@@ -449,26 +686,19 @@
         }
         html += `</div>`;
         container.innerHTML = html;
-
-        container.querySelectorAll('.module-item').forEach(el => {
-            el.onclick = () => openModuleEditor(el.dataset.id, el.dataset.cat);
-        });
+        container.querySelectorAll('.module-item').forEach(el => { el.onclick = () => openModuleEditor(el.dataset.id, el.dataset.cat); });
     }
 
     function openModuleEditor(code, catKey) {
         const mod = state.moduleData[catKey].find(m => m.code === code);
         if (!mod) return;
-        
         const modal = document.getElementById('modal-container');
         modal.classList.remove('hidden');
         modal.innerHTML = `
             <div class="modal-overlay">
                 <div class="bg-surface border border-outline-variant rounded-sm w-full max-w-2xl h-[80vh] flex flex-col">
                     <div class="p-4 border-b border-outline-variant flex justify-between items-center">
-                        <div>
-                            <div class="font-label-caps text-xs text-primary-fixed-dim">編輯模組: ${mod.code}</div>
-                            <div class="font-data-md text-[10px] text-on-surface-variant">File ID: ${mod.fileId}</div>
-                        </div>
+                        <div><div class="font-label-caps text-xs text-primary-fixed-dim">編輯模組: ${mod.code}</div><div class="font-data-md text-[10px] text-on-surface-variant">File ID: ${mod.fileId}</div></div>
                         <button id="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button>
                     </div>
                     <textarea id="editor-content" class="flex-1 p-4 bg-black/20 text-on-surface font-data-md text-sm resize-none focus:ring-0 border-none">${mod.rawContent}</textarea>
@@ -479,7 +709,6 @@
                 </div>
             </div>
         `;
-
         document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
         document.getElementById('save-overwrite').onclick = async () => {
             const content = document.getElementById('editor-content').value;
@@ -489,16 +718,11 @@
             alert('模組已覆寫！');
         };
         document.getElementById('save-as').onclick = async () => {
-            const newName = prompt('請輸入新模組名稱 (不含 .txt):');
-            if (!newName) return;
+            const newName = prompt('請輸入新模組名稱 (不含 .txt):'); if (!newName) return;
             const content = document.getElementById('editor-content').value;
             const cat = state.config.categories.find(c => c.key === catKey);
-            
             let currentParentId = state.driveIds.root;
-            for (const folderName of cat.path) {
-                currentParentId = await DriveAPI.findId(folderName, currentParentId, true);
-            }
-            
+            for (const folderName of cat.path) currentParentId = await DriveAPI.findId(folderName, currentParentId, true);
             await DriveAPI.createFile(`${newName}.txt`, currentParentId, content);
             await ModuleLoader.loadAll();
             modal.classList.add('hidden');
@@ -507,282 +731,154 @@
         };
     }
 
+    // --- Outline View (Modified to use Books Data) ---
     function renderOutlineView(container) {
+        const book = getCurrentBook();
+        if (!book) {
+            container.innerHTML = `<div class="p-gutter text-center text-on-surface-variant py-10 font-data-md">⚠️ 請先在【Books】頁籤建立書籍並設定演員/場景總表，否則 Outline 將無法帶出實例。</div>`;
+            return;
+        }
+
         const d = state.outlineData;
         const tabNames = ["起", "承", "轉", "合"];
-        
         let html = `
             <div class="p-gutter space-y-4">
+                <div class="bg-primary-container/10 border border-primary-container/30 p-2 rounded-sm flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary-fixed-dim text-[18px]">menu_book</span>
+                    <span class="font-data-md text-xs text-primary-fixed-dim">當前書籍：${book.title} | 風格：${book.style} | 段落字數限制：${book.paragraphWordCount}</span>
+                </div>
                 <div class="grid grid-cols-2 gap-2">
-                    <div class="space-y-1">
-                        <label class="font-label-caps text-[10px] text-on-surface-variant">章節編號</label>
-                        <input type="text" id="chap-num" value="${d.chapter}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm">
-                    </div>
-                    <div class="space-y-1">
-                        <label class="font-label-caps text-[10px] text-on-surface-variant">版次</label>
-                        <input type="text" id="chap-ver" value="${d.version}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm">
-                    </div>
+                    <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">章節編號</label><input type="text" id="chap-num" value="${d.chapter}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
+                    <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">版次</label><input type="text" id="chap-ver" value="${d.version}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                 </div>
-                <div class="space-y-1">
-                    <label class="font-label-caps text-[10px] text-on-surface-variant">本章核心事件</label>
-                    <textarea id="core-event" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[60px]">${d.coreEvent}</textarea>
-                </div>
-                <!-- [NEW] 本章總結需求調整 -->
-                <div class="space-y-1 border-b border-outline-variant pb-3">
-                    <label class="font-label-caps text-[10px] text-primary-fixed-dim">本章總結需求調整 (Summary Protocol)</label>
-                    <textarea id="summary-req" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[60px]" placeholder="例：請提取角色隱性好感度變化、伏筆推進狀態，並輸出 JSON 格式的 Fact Log...">${d.chapterSummaryRequirement}</textarea>
-                </div>
-
+                <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">本章核心事件</label><textarea id="core-event" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[60px]">${d.coreEvent}</textarea></div>
+                <div class="space-y-1 border-b border-outline-variant pb-3"><label class="font-label-caps text-[10px] text-primary-fixed-dim">本章總結需求調整 (Summary Protocol)</label><textarea id="summary-req" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[60px]" placeholder="例：請提取角色隱性好感度變化...">${d.chapterSummaryRequirement}</textarea></div>
                 <div class="flex border-b border-outline-variant">
-                    ${tabNames.map((name, i) => `
-                        <button class="tab-btn flex-1 py-2 font-label-caps text-xs ${state.currentTab === i ? 'tab-active' : 'text-on-surface-variant'}" data-tab="${i}">【${name}】</button>
-                    `).join('')}
+                    ${tabNames.map((name, i) => `<button class="tab-btn flex-1 py-2 font-label-caps text-xs ${state.currentTab === i ? 'tab-active' : 'text-on-surface-variant'}" data-tab="${i}">【${name}】</button>`).join('')}
                 </div>
-
                 <div id="tab-content" class="space-y-4"></div>
             </div>
         `;
         container.innerHTML = html;
-
         document.getElementById('chap-num').oninput = (e) => d.chapter = e.target.value;
         document.getElementById('chap-ver').oninput = (e) => d.version = e.target.value;
         document.getElementById('core-event').oninput = (e) => d.coreEvent = e.target.value;
         document.getElementById('summary-req').oninput = (e) => d.chapterSummaryRequirement = e.target.value;
-
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.onclick = () => {
-                state.currentTab = parseInt(btn.dataset.tab);
-                renderOutlineView(container);
-            };
-        });
-
+        document.querySelectorAll('.tab-btn').forEach(btn => { btn.onclick = () => { state.currentTab = parseInt(btn.dataset.tab); renderOutlineView(container); }; });
         renderTabContent();
     }
 
     function renderTabContent() {
         const tabContent = document.getElementById('tab-content');
         const tabData = state.outlineData.tabs[state.currentTab];
-        const scenes = state.moduleData['Inst_Scene'] || [];
-        const chars = state.moduleData['Inst_Char'] || [];
+        const book = getCurrentBook();
+        
+        // [CRITICAL] 數據源切換為 Books 頁籤的實例池
+        const scenes = book ? book.scenes : [];
+        const chars = book ? book.actors : [];
         const modTypes = state.config.outlineModTypes || [];
 
         let html = '';
-
-        // [NEW] 前章總結參考依據 (僅在【起】頁籤顯示)
         if (state.currentTab === 0) {
-            html += `
-                <div class="space-y-1 border-b border-outline-variant pb-3 mb-3">
-                    <label class="font-label-caps text-[10px] text-primary-fixed-dim">前章總結參考依據 (Previous Summary)</label>
-                    <textarea id="prev-summary" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]" placeholder="貼上或輸入上一章的總結快照，作為本章源頭阻斷的歷史狀態依據...">${state.outlineData.previousSummary}</textarea>
-                </div>
-            `;
+            html += `<div class="space-y-1 border-b border-outline-variant pb-3 mb-3"><label class="font-label-caps text-[10px] text-primary-fixed-dim">前章總結參考依據 (Previous Summary)</label><textarea id="prev-summary" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]" placeholder="貼上或輸入上一章的總結快照...">${state.outlineData.previousSummary}</textarea></div>`;
         }
 
         html += `
-            <div class="space-y-1">
-                <label class="font-label-caps text-[10px] text-on-surface-variant">全局場景 (Instance)</label>
+            <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">全局場景 (Instance)</label>
                 <select id="scene-select" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-2 rounded-sm font-data-md text-sm">
                     <option value="">(無)</option>
-                    ${scenes.map(s => `<option value="${s.code}" ${tabData.scene === s.code ? 'selected' : ''}>${s.name}</option>`).join('')}
+                    ${scenes.map(s => `<option value="${s.id}" ${tabData.scene === s.id ? 'selected' : ''}>${s.name} ${s.oopCode ? '['+s.oopCode+']' : ''}</option>`).join('')}
                 </select>
             </div>
-            
-            <!-- [NEW] HOOK承接詞 -->
-            <div class="space-y-1">
-                <label class="font-label-caps text-[10px] text-on-surface-variant">HOOK承接詞 (Transition Hook)</label>
-                <input type="text" id="hook-input" value="${tabData.hook || ''}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm" placeholder="例：然而，他並未察覺暗處的視線...">
-            </div>
-
-            <div class="space-y-1">
-                <label class="font-label-caps text-[10px] text-on-surface-variant">動作/劇情描述</label>
-                <textarea id="action-text" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]">${tabData.actionText}</textarea>
-            </div>
-            <div class="space-y-2">
-                <label class="font-label-caps text-[10px] text-on-surface-variant">出場人物 (Instances)</label>
+            <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">HOOK承接詞 (Transition Hook)</label><input type="text" id="hook-input" value="${tabData.hook || ''}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm" placeholder="例：然而，他並未察覺暗處的視線..."></div>
+            <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">動作/劇情描述</label><textarea id="action-text" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]">${tabData.actionText}</textarea></div>
+            <div class="space-y-2"><label class="font-label-caps text-[10px] text-on-surface-variant">出場人物 (Instances)</label>
                 ${chars.map(c => `
                     <div class="glass-panel p-2 rounded-sm space-y-2">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" class="char-check rounded text-primary-container" data-code="${c.code}" ${tabData.characters[c.code]?.checked ? 'checked' : ''}>
-                            <span class="font-data-md text-sm">${c.name}</span>
-                        </label>
-                        <div class="char-settings ${tabData.characters[c.code]?.checked ? '' : 'hidden'} space-y-2 pl-6 border-l border-outline-variant">
+                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="char-check rounded text-primary-container" data-code="${c.id}" ${tabData.characters[c.id]?.checked ? 'checked' : ''}><span class="font-data-md text-sm">${c.name} ${c.oopCode ? '['+c.oopCode+']' : ''}</span></label>
+                        <div class="char-settings ${tabData.characters[c.id]?.checked ? '' : 'hidden'} space-y-2 pl-6 border-l border-outline-variant">
                             ${modTypes.map(mt => {
                                 const mods = state.moduleData[mt.key] || [];
-                                const charSetting = tabData.characters[c.code]?.settings?.[mt.key] || {};
-                                return `
-                                    <div class="grid grid-cols-3 gap-1 items-center">
-                                        <span class="font-label-caps text-[8px] text-on-surface-variant">${mt.label}</span>
-                                        <select class="mod-select col-span-2 bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.code}" data-type="${mt.key}">
-                                            <option value="">(無)</option>
-                                            ${mods.map(m => `<option value="${m.code}" ${charSetting.name === m.code ? 'selected' : ''}>${m.name}</option>`).join('')}
-                                        </select>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-1">
-                                        <input type="text" placeholder="Must Execute" class="must-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.code}" data-type="${mt.key}" value="${charSetting.must || ''}">
-                                        <input type="text" placeholder="Forbid" class="forbid-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.code}" data-type="${mt.key}" value="${charSetting.forbid || ''}">
-                                    </div>
-                                `;
+                                const charSetting = tabData.characters[c.id]?.settings?.[mt.key] || {};
+                                return `<div class="grid grid-cols-3 gap-1 items-center"><span class="font-label-caps text-[8px] text-on-surface-variant">${mt.label}</span><select class="mod-select col-span-2 bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}"><option value="">(無)</option>${mods.map(m => `<option value="${m.code}" ${charSetting.name === m.code ? 'selected' : ''}>${m.name}</option>`).join('')}</select></div><div class="grid grid-cols-2 gap-1"><input type="text" placeholder="Must Execute" class="must-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}" value="${charSetting.must || ''}"><input type="text" placeholder="Forbid" class="forbid-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}" value="${charSetting.forbid || ''}"></div>`;
                             }).join('')}
                         </div>
                     </div>
                 `).join('')}
             </div>
-            <div class="pt-2 border-t border-outline-variant">
-                <label class="font-label-caps text-[10px] text-on-surface-variant">段落設定繼承</label>
-                <div class="flex gap-2 mt-1">
-                    <select id="inherit-src" class="flex-1 bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-xs">
-                        ${["起", "承", "轉", "合"].map((name, i) => i !== state.currentTab ? `<option value="${i}">從【${name}】帶入</option>` : '').join('')}
-                    </select>
-                    <button id="inherit-btn" class="bg-surface-container-high text-on-surface px-3 py-1.5 rounded-sm font-label-caps text-xs border border-outline-variant">📥 帶入</button>
-                </div>
-            </div>
+            <div class="pt-2 border-t border-outline-variant"><label class="font-label-caps text-[10px] text-on-surface-variant">段落設定繼承</label><div class="flex gap-2 mt-1"><select id="inherit-src" class="flex-1 bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-xs">${["起", "承", "轉", "合"].map((name, i) => i !== state.currentTab ? `<option value="${i}">從【${name}】帶入</option>` : '').join('')}</select><button id="inherit-btn" class="bg-surface-container-high text-on-surface px-3 py-1.5 rounded-sm font-label-caps text-xs border border-outline-variant">📥 帶入</button></div></div>
         `;
         tabContent.innerHTML = html;
 
-        // Event Bindings
-        if (state.currentTab === 0) {
-            document.getElementById('prev-summary').oninput = (e) => state.outlineData.previousSummary = e.target.value;
-        }
-        
+        if (state.currentTab === 0) document.getElementById('prev-summary').oninput = (e) => state.outlineData.previousSummary = e.target.value;
         document.getElementById('scene-select').onchange = (e) => tabData.scene = e.target.value;
-        document.getElementById('hook-input').oninput = (e) => tabData.hook = e.target.value; // [NEW]
+        document.getElementById('hook-input').oninput = (e) => tabData.hook = e.target.value;
         document.getElementById('action-text').oninput = (e) => tabData.actionText = e.target.value;
 
-        tabContent.querySelectorAll('.char-check').forEach(cb => {
-            cb.onchange = (e) => {
-                const code = e.target.dataset.code;
-                if (!tabData.characters[code]) tabData.characters[code] = { checked: false, settings: {} };
-                tabData.characters[code].checked = e.target.checked;
-                renderTabContent();
-            };
-        });
-
-        tabContent.querySelectorAll('.mod-select').forEach(sel => {
-            sel.onchange = (e) => {
-                const charCode = e.target.dataset.char;
-                const type = e.target.dataset.type;
-                if (!tabData.characters[charCode].settings[type]) tabData.characters[charCode].settings[type] = {};
-                tabData.characters[charCode].settings[type].name = e.target.value;
-            };
-        });
-
-        tabContent.querySelectorAll('.must-input').forEach(inp => {
-            inp.oninput = (e) => {
-                const charCode = e.target.dataset.char;
-                const type = e.target.dataset.type;
-                if (!tabData.characters[charCode].settings[type]) tabData.characters[charCode].settings[type] = {};
-                tabData.characters[charCode].settings[type].must = e.target.value;
-            };
-        });
-
-        tabContent.querySelectorAll('.forbid-input').forEach(inp => {
-            inp.oninput = (e) => {
-                const charCode = e.target.dataset.char;
-                const type = e.target.dataset.type;
-                if (!tabData.characters[charCode].settings[type]) tabData.characters[charCode].settings[type] = {};
-                tabData.characters[charCode].settings[type].forbid = e.target.value;
-            };
-        });
+        tabContent.querySelectorAll('.char-check').forEach(cb => { cb.onchange = (e) => { const code = e.target.dataset.code; if (!tabData.characters[code]) tabData.characters[code] = { checked: false, settings: {} }; tabData.characters[code].checked = e.target.checked; renderTabContent(); }; });
+        tabContent.querySelectorAll('.mod-select').forEach(sel => { sel.onchange = (e) => { const charCode = e.target.dataset.char; const type = e.target.dataset.type; if (!tabData.characters[charCode].settings[type]) tabData.characters[charCode].settings[type] = {}; tabData.characters[charCode].settings[type].name = e.target.value; }; });
+        tabContent.querySelectorAll('.must-input').forEach(inp => { inp.oninput = (e) => { const charCode = e.target.dataset.char; const type = e.target.dataset.type; if (!tabData.characters[charCode].settings[type]) tabData.characters[charCode].settings[type] = {}; tabData.characters[charCode].settings[type].must = e.target.value; }; });
+        tabContent.querySelectorAll('.forbid-input').forEach(inp => { inp.oninput = (e) => { const charCode = e.target.dataset.char; const type = e.target.dataset.type; if (!tabData.characters[charCode].settings[type]) tabData.characters[charCode].settings[type] = {}; tabData.characters[charCode].settings[type].forbid = e.target.value; }; });
 
         document.getElementById('inherit-btn').onclick = () => {
             const srcIdx = parseInt(document.getElementById('inherit-src').value);
             const srcTab = state.outlineData.tabs[srcIdx];
-            tabData.scene = srcTab.scene;
-            tabData.hook = srcTab.hook; // [NEW] 繼承 HOOK
-            tabData.actionText = srcTab.actionText;
+            tabData.scene = srcTab.scene; tabData.hook = srcTab.hook; tabData.actionText = srcTab.actionText;
             tabData.characters = JSON.parse(JSON.stringify(srcTab.characters));
             renderTabContent();
         };
     }
 
+    // --- Triggers View ---
     function renderTriggersView(container) {
-        const prompts = state.config.prompts || {
-            "AUDIT": "【自我審計協議】\n請執行自我審計，檢查上述生成內容是否違反當前生效模組。",
-            "REVIEW": "【角色內心復盤】\n請啟動角色內心復盤，推演本章互動對角色隱性關係的影響。",
-            "DIRECTOR": "【導演視角反思】\n請先進行導演視角反思，思考如何用鏡頭語言還原文字張力。",
-            "TOT": "【思維樹推演】\n請推演 3 種劇情走向，自我評估並淘汰不符合當前模組狀態的路線。"
-        };
-
+        const prompts = state.config.prompts || { "AUDIT": "【自我審計協議】\n請執行自我審計，檢查上述生成內容是否違反當前生效模組。" };
+        const book = getCurrentBook();
         container.innerHTML = `
             <div class="p-gutter space-y-4">
                 <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">自我思維觸發器</h2>
                 <div class="grid grid-cols-2 gap-2">
-                    ${Object.keys(prompts).map(key => `
-                        <button class="trigger-btn bg-surface-container-high text-on-surface p-3 rounded-sm font-label-caps text-[10px] border border-outline-variant flex flex-col items-center gap-1 active:bg-surface-bright" data-prompt="${key}">
-                            <span class="material-symbols-outlined text-primary-fixed-dim">psychology</span>
-                            ${key}
-                        </button>
-                    `).join('')}
+                    ${Object.keys(prompts).map(key => `<button class="trigger-btn bg-surface-container-high text-on-surface p-3 rounded-sm font-label-caps text-[10px] border border-outline-variant flex flex-col items-center gap-1 active:bg-surface-bright" data-prompt="${key}"><span class="material-symbols-outlined text-primary-fixed-dim">psychology</span>${key}</button>`).join('')}
                 </div>
-
                 <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2 mt-6">大綱預覽與導出</h2>
-                <div class="glass-panel p-3 rounded-sm">
-                    <pre id="outline-preview" class="font-data-md text-[10px] text-on-surface-variant whitespace-pre-wrap max-h-[300px] overflow-y-auto"></pre>
-                </div>
+                <div class="glass-panel p-3 rounded-sm"><pre id="outline-preview" class="font-data-md text-[10px] text-on-surface-variant whitespace-pre-wrap max-h-[300px] overflow-y-auto"></pre></div>
                 <div class="grid grid-cols-2 gap-2">
                     <button id="refresh-preview" class="bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">👁️ 更新預覽</button>
-                    <button id="copy-outline" class="bg-primary-container text-on-primary-fixed py-2 rounded-sm font-label-caps text-xs flex items-center justify-center gap-1 cyan-glow">
-                        <span class="material-symbols-outlined text-[16px]">content_copy</span> 複製全部大綱
-                    </button>
+                    <button id="copy-outline" class="bg-primary-container text-on-primary-fixed py-2 rounded-sm font-label-caps text-xs flex items-center justify-center gap-1 cyan-glow"><span class="material-symbols-outlined text-[16px]">content_copy</span> 複製全部大綱</button>
                 </div>
             </div>
         `;
-
-        document.querySelectorAll('.trigger-btn').forEach(btn => {
-            btn.onclick = () => {
-                navigator.clipboard.writeText(prompts[btn.dataset.prompt]);
-                alert(`已複製 ${btn.dataset.prompt} 觸發器指令！`);
-            };
-        });
-
-        document.getElementById('refresh-preview').onclick = () => {
-            document.getElementById('outline-preview').innerText = generateOutline();
-        };
-
-        document.getElementById('copy-outline').onclick = () => {
-            navigator.clipboard.writeText(generateOutline());
-            alert('大綱已複製到剪貼簿！');
-        };
-        
+        document.querySelectorAll('.trigger-btn').forEach(btn => { btn.onclick = () => { navigator.clipboard.writeText(prompts[btn.dataset.prompt]); alert(`已複製 ${btn.dataset.prompt} 觸發器指令！`); }; });
+        document.getElementById('refresh-preview').onclick = () => { document.getElementById('outline-preview').innerText = generateOutline(); };
+        document.getElementById('copy-outline').onclick = () => { navigator.clipboard.writeText(generateOutline()); alert('大綱已複製到剪貼簿！'); };
         document.getElementById('outline-preview').innerText = generateOutline();
     }
 
     function generateOutline() {
         const d = state.outlineData;
+        const book = getCurrentBook();
         let outline = `[CHAPTER_${d.chapter}_${d.version}]\n`;
-        
-        // [NEW] 前章總結
-        if (d.previousSummary) {
-            outline += `### 前章總結參考依據\n${d.previousSummary}\n\n`;
-        }
-        
+        if (book) outline += `[BOOK_META]: 書名《${book.title}》 | 風格：${book.style} | 段落字數限制：${book.paragraphWordCount}字\n`;
+        if (d.previousSummary) outline += `### 前章總結參考依據\n${d.previousSummary}\n\n`;
         outline += `### 本章核心事件\n${d.coreEvent}\n\n`;
-        
-        // [NEW] 總結需求
-        if (d.chapterSummaryRequirement) {
-            outline += `### 本章總結需求調整\n${d.chapterSummaryRequirement}\n\n`;
-        }
+        if (d.chapterSummaryRequirement) outline += `### 本章總結需求調整\n${d.chapterSummaryRequirement}\n\n`;
 
         const tabNames = ["起", "承", "轉", "合"];
-        
         for (let i = 0; i < 4; i++) {
             const tab = d.tabs[i];
             outline += `【${tabNames[i]}】\n`;
-            if (tab.scene) outline += `- 全局場景：${tab.scene}\n`;
-            
-            // [NEW] HOOK
+            const sceneObj = book ? book.scenes.find(s => s.id === tab.scene) : null;
+            if (sceneObj) outline += `- 全局場景：${sceneObj.name} ${sceneObj.oopCode ? '['+sceneObj.oopCode+']' : ''}\n`;
             if (tab.hook) outline += `- HOOK承接詞：${tab.hook}\n`;
-            
             outline += "- 出場人物:\n";
             let hasChars = false;
-            for (const charCode in tab.characters) {
-                const charData = tab.characters[charCode];
-                if (charData.checked) {
+            for (const charId in tab.characters) {
+                const charData = tab.characters[charId];
+                const charObj = book ? book.actors.find(a => a.id === charId) : null;
+                if (charData.checked && charObj) {
                     hasChars = true;
-                    outline += `  - [${charCode}]:\n`;
+                    outline += `  - [${charObj.name}] ${charObj.oopCode ? '('+charObj.oopCode+')' : ''}:\n`;
                     const labelMap = {};
                     state.config.outlineModTypes.forEach(mt => labelMap[mt.key] = mt.label);
-                    
                     for (const key in charData.settings) {
                         const s = charData.settings[key];
                         if (s.name) outline += `    - ${labelMap[key] || key}: ${s.name}\n`;
@@ -795,33 +891,18 @@
             if (tab.actionText) outline += `- 全局動作描述：${tab.actionText}\n`;
             outline += "\n";
         }
-        outline += `[SYSTEM_INSTRUCTION]: 請根據上述大綱與 OOP 實例模組，生成正文，並在文末嚴格按照 <sd_prompt> 格式輸出帶權重的視覺提示詞。`;
+        outline += `[SYSTEM_INSTRUCTION]: 請根據上述大綱與 OOP 實例模組生成正文，嚴格遵守段落字數限制，並在文末嚴格按照 <sd_prompt> 格式輸出帶權重的視覺提示詞。`;
         return outline;
     }
 
     // --- Event Listeners & Init ---
     document.getElementById('auth-btn').addEventListener('click', () => {
         if (!state.tokenClient) return;
-        if (gapi.client.getToken()) {
-            performPostLoginActions();
-            return;
-        }
+        if (gapi.client.getToken()) { performPostLoginActions(); return; }
         state.tokenClient.requestAccessToken({prompt: 'consent'});
     });
-
-    document.getElementById('logout-btn').addEventListener('click', () => {
-        localStorage.removeItem('tdf_access_token');
-        gapi.client.setToken(null);
-        location.reload();
-    });
-
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.onclick = () => {
-            state.currentView = btn.dataset.view;
-            renderCurrentView();
-        };
-    });
-
+    document.getElementById('logout-btn').addEventListener('click', () => { localStorage.removeItem('tdf_access_token'); gapi.client.setToken(null); location.reload(); });
+    document.querySelectorAll('.nav-btn').forEach(btn => { btn.onclick = () => { state.currentView = btn.dataset.view; renderCurrentView(); }; });
     window.onload = () => { gapiLoaded(); gisLoaded(); };
 </script>
 </body>
