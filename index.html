@@ -548,7 +548,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">設定章節總數</label><input type="number" id="cfg-chaps" value="${cfg.totalChapters}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                         <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">設定主要演員人數</label><input type="number" id="cfg-actors" value="${cfg.mainActors}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
-                        <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">設定大綱字數</label><input type="number" id="cfg-words" value="${cfg.wordCount}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
+                        <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">設定每段字數</label><input type="number" id="cfg-words" value="${cfg.wordCount}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
                     </div>
                     <button id="gen-prompt-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2"><span class="material-symbols-outlined">auto_awesome</span> 產生大綱提問詞 (複製至剪貼簿)</button>
                 </div>
@@ -558,7 +558,8 @@
                 cfg.mainActors = parseInt(document.getElementById('cfg-actors').value) || 3;
                 cfg.wordCount = parseInt(document.getElementById('cfg-words').value) || 5000;
                 saveBooksData();
-                const prompt = `【大綱生成指令】\n請為故事《${book.title}》生成一份總體大綱。\n- 風格：${book.style}\n- 總章節數：${cfg.totalChapters}\n- 主要演員人數：${cfg.mainActors}\n- 大綱總字數：約 ${cfg.wordCount} 字\n\n請輸出 JSON 格式的章節規劃，包含章節編號、章節名稱、核心事件摘要。`;
+                const prompt = `【大綱生成指令】\n請為故事《${book.title}》生成一份總體大綱。\n- 風格：${book.style}\n- 總章節數：${cfg.totalChapters}\n- 主要演員人數：${cfg.mainActors}\n\n
+                請輸出 JSON 格式的章節規劃，包含章節編號、章節名稱，並嚴格按照【起】、【承】、【轉】、【合】四個階段每階段約 ${cfg.wordCount} 字`;
                 navigator.clipboard.writeText(prompt);
                 alert('大綱提問詞已複製！請貼至 LLM 生成大綱。');
             };
