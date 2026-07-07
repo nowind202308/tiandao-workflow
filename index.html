@@ -64,13 +64,13 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.009)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.010)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.009)</h1>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.010)</h1>
     </div>
     <div class="flex items-center gap-3">
         <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -330,7 +330,10 @@
         renderCurrentView();
     }
 
+    // ================= 核心升級：模組索引載入引擎 =================
     const ModuleLoader = {
+        INDEX_FILE_NAME: 'Modules_Index.json',
+
         parseModule(content, filename) {
             const codeMatch = content.match(/^\s*\[MOD_ID\]\s*[:：]\s*([A-Za-z0-9_]+)/m);
             const code = codeMatch ? codeMatch[1].trim() : filename.replace(/\.(txt|ahk)$/, '');
@@ -355,9 +358,48 @@
                 rawContent: content
             };
         },
+
+        // 主入口：決定是讀索引還是重建
         async loadAll() {
             if (!state.config || !state.driveIds.root) return;
+            
+            console.log("正在檢查模組索引...");
+            const indexFileId = await DriveAPI.findId(this.INDEX_FILE_NAME, state.driveIds.root, false);
+            
+            if (indexFileId) {
+                console.log("✅ 發現索引檔，啟動極速載入模式...");
+                const content = await DriveAPI.getFileContent(indexFileId);
+                const indexData = JSON.parse(content);
+                this.buildStateFromIndex(indexData);
+            } else {
+                console.log("⚠️ 未發現索引檔，執行全量掃描...");
+                await this.scanAndBuildIndex();
+            }
+        },
+
+        // 從索引檔重建 state.moduleData
+        buildStateFromIndex(indexData) {
             state.moduleData = {};
+            if (!indexData.categories) return;
+            for (const [category, modules] of Object.entries(indexData.categories)) {
+                state.moduleData[category] = modules.map(mod => ({
+                    code: mod.id,
+                    name: mod.name,
+                    fileId: mod.fileId,
+                    category: category,
+                    rawContent: null // 索引模式不載入全文，節省記憶體
+                }));
+            }
+        },
+
+        // 全量掃描並生成索引檔
+        async scanAndBuildIndex() {
+            state.moduleData = {};
+            let indexData = {
+                meta: { version: "1.0", last_updated: new Date().toISOString() },
+                categories: {}
+            };
+
             for (const cat of state.config.categories) {
                 let currentParentId = state.driveIds.root;
                 let validPath = true;
@@ -367,20 +409,42 @@
                     currentParentId = id;
                 }
                 if (!validPath) continue;
+                
                 const files = await DriveAPI.listFiles(currentParentId);
                 state.moduleData[cat.key] = [];
+                indexData.categories[cat.key] = [];
+
                 for (const file of files) {
                     if (file.name.endsWith('.txt') && file.name !== 'README.txt') {
                         try {
                             const content = await DriveAPI.getFileContent(file.id);
                             const parsed = this.parseModule(content, file.name);
+                            
                             parsed.fileId = file.id;
                             parsed.category = cat.key;
                             state.moduleData[cat.key].push(parsed);
+
+                            indexData.categories[cat.key].push({
+                                id: parsed.code,
+                                name: parsed.name,
+                                fileId: file.id
+                            });
                         } catch (e) { console.error(`Error loading ${file.name}`, e); }
                     }
                 }
             }
+
+            console.log("🚀 掃描完畢，正在生成並上傳索引檔至 GDrive...");
+            const jsonStr = JSON.stringify(indexData, null, 2);
+            
+            // 檢查是否已存在，存在則更新，不存在則創建
+            const existingIndexId = await DriveAPI.findId(this.INDEX_FILE_NAME, state.driveIds.root, false);
+            if (existingIndexId) {
+                await DriveAPI.updateFile(existingIndexId, jsonStr);
+            } else {
+                await DriveAPI.createFile(this.INDEX_FILE_NAME, state.driveIds.root, jsonStr);
+            }
+            console.log("✅ 索引檔 Modules_Index.json 已建立/更新！");
         }
     };
 
@@ -450,7 +514,11 @@
                     <div class="flex justify-between items-center"><span class="font-data-md text-sm">Total Books:</span><span class="font-data-md text-sm text-primary-fixed-dim">${state.books.length}</span></div>
                 </div>
                 <button id="init-btn" class="w-full bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow"><span class="material-symbols-outlined">rocket_launch</span> 一鍵初始化專案環境</button>
-                <button id="reload-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant"> 重新載入模組庫</button>
+                
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="load-fast-btn" class="bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-xs border border-outline-variant flex items-center justify-center gap-1 hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined text-[16px]">bolt</span> 快速載入 (讀取索引)</button>
+                    <button id="rebuild-index-btn" class="bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-xs border border-outline-variant flex items-center justify-center gap-1 hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined text-[16px]">build</span> 重建索引 (全量掃描)</button>
+                </div>
             </div>
         `;
         document.getElementById('init-btn').onclick = async () => {
@@ -459,7 +527,25 @@
             await initializeEnvironment();
             document.getElementById('secure-mask').classList.add('hidden-mask');
         };
-        document.getElementById('reload-btn').onclick = async () => { await ModuleLoader.loadAll(); renderCurrentView(); };
+        
+        document.getElementById('load-fast-btn').onclick = async () => {
+            document.getElementById('mask-status').innerText = 'LOADING_INDEX...';
+            document.getElementById('secure-mask').classList.remove('hidden-mask');
+            await ModuleLoader.loadAll();
+            document.getElementById('secure-mask').classList.add('hidden-mask');
+            renderCurrentView();
+            alert('✅ 模組極速載入完成！');
+        };
+
+        document.getElementById('rebuild-index-btn').onclick = async () => {
+            if (!confirm('這將掃描所有模組檔案並重新生成索引，可能需要一些時間。確定要執行嗎？')) return;
+            document.getElementById('mask-status').innerText = 'SCANNING_MODULES...';
+            document.getElementById('secure-mask').classList.remove('hidden-mask');
+            await ModuleLoader.scanAndBuildIndex();
+            document.getElementById('secure-mask').classList.add('hidden-mask');
+            renderCurrentView();
+            alert('✅ 索引重建完成！下次載入將瞬間完成。');
+        };
     }
 
     function renderUploadConfigView(container) {
@@ -901,6 +987,21 @@
     function openModuleEditor(code, catKey) {
         const mod = state.moduleData[catKey].find(m => m.code === code);
         if (!mod) return;
+        
+        // 如果是極速載入模式，rawContent 為 null，需要即時從 GDrive 抓取
+        const loadAndEdit = async () => {
+            if (!mod.rawContent) {
+                document.getElementById('mask-status').innerText = 'FETCHING_MODULE...';
+                document.getElementById('secure-mask').classList.remove('hidden-mask');
+                mod.rawContent = await DriveAPI.getFileContent(mod.fileId);
+                document.getElementById('secure-mask').classList.add('hidden-mask');
+            }
+            renderModuleEditorModal(mod);
+        };
+        loadAndEdit();
+    }
+
+    function renderModuleEditorModal(mod) {
         const modal = document.getElementById('modal-container');
         modal.classList.remove('hidden');
         modal.innerHTML = `
@@ -932,14 +1033,18 @@
         document.getElementById('save-as').onclick = async () => {
             const newName = prompt('請輸入新模組名稱 (不含 .txt):'); if (!newName) return;
             const content = document.getElementById('editor-content').value;
-            const cat = state.config.categories.find(c => c.key === catKey);
+            const cat = state.config.categories.find(c => c.key === mod.category);
             let currentParentId = state.driveIds.root;
             for (const folderName of cat.path) currentParentId = await DriveAPI.findId(folderName, currentParentId, true);
             await DriveAPI.createFile(`${newName}.txt`, currentParentId, content);
-            await ModuleLoader.loadAll();
+            
+            // 儲存後提示重建索引
+            if(confirm('新模組已儲存！是否立即重建索引以使其生效？')) {
+                await ModuleLoader.scanAndBuildIndex();
+            }
             modal.classList.add('hidden');
             renderCurrentView();
-            alert('新模組已儲存！');
+            alert('操作完成！');
         };
     }
 
@@ -1087,11 +1192,9 @@
                     hasChars = true;
                     outline += `  - [${charObj.name}] ${charObj.oopCode ? '['+charObj.oopCode+']' : ''}:\n`;
                     
-                    // 【修正】讀取演員池中預設的 OOP 模組關聯 (linkedModules)
                     if (charObj.linkedModules && charObj.linkedModules.length > 0) {
                         outline += `    - OOP 模組關聯 (Templates):\n`;
                         charObj.linkedModules.forEach(modCode => {
-                            // 查找模組的中文名稱
                             let modName = modCode;
                             for (const catKey in state.moduleData) {
                                 const mod = state.moduleData[catKey].find(m => m.code === modCode);
