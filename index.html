@@ -29,7 +29,6 @@
         .tab-active { border-bottom: 2px solid #00f2ff; color: #00f2ff; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
 
-        /* === 導航選單收起/展開動畫 === */
         #main-nav { transform: translateY(0); transition: transform 0.3s ease-in-out; }
         #main-nav.nav-hidden { transform: translateY(100%); }
         #nav-expanded { opacity: 1; transition: opacity 0.3s ease; }
@@ -65,13 +64,13 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.007)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.008)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.007)</h1>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.008)</h1>
     </div>
     <div class="flex items-center gap-3">
         <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -89,7 +88,6 @@
     <div id="view-container" class="flex-1 flex flex-col"></div>
 </div>
 
-<!-- === 可收起導航選單 === -->
 <nav id="main-nav" class="fixed bottom-0 w-full z-50 transition-all duration-300 ease-in-out">
     <div id="nav-expanded" class="h-16 bg-surface-container border-t border-outline-variant flex items-center px-2 relative">
         <div class="flex items-center justify-around flex-1">
@@ -158,7 +156,6 @@
         navCollapsed: false
     };
 
-    // --- 【核心修復】Google API 智能輪詢初始化 ---
     function handleTokenResponse(resp) {
         if (resp.error !== undefined) {
             console.error('Token error:', resp);
@@ -180,7 +177,6 @@
     }
 
     function initGoogleApis() {
-        // 如果 Google 的 JS 還沒載入完成，則 200ms 後再次檢查
         if (typeof gapi === 'undefined' || typeof google === 'undefined' || !google.accounts) {
             setTimeout(initGoogleApis, 200);
             return;
@@ -229,7 +225,6 @@
         renderCurrentView();
     }
 
-    // --- Drive API Wrapper ---
     const DriveAPI = {
         async findId(name, parentId = null, isFolder = true) {
             const mime = isFolder ? "mimeType = 'application/vnd.google-apps.folder'" : "mimeType != 'application/vnd.google-apps.folder'";
@@ -279,7 +274,6 @@
         }
     };
 
-    // --- Books Data Management ---
     async function loadBooksData() {
         const fileId = await DriveAPI.findId(TDF_CONFIG.BOOKS_FILE, state.driveIds.root, false);
         if (fileId) {
@@ -337,26 +331,26 @@
     }
 
     // --- Module Loader & Parser ---
-   const ModuleLoader = {
-    parseModule(content, filename) {
-        // 正確讀取 [MOD_ID]: 的值（用於內部識別和組裝）
-        const codeMatch = content.match(/^\s*\[MOD_ID\]\s*[:：]\s*([A-Za-z0-9_]+)/m);
-        const code = codeMatch ? codeMatch[1].trim() : filename.replace(/\.(txt|ahk)$/, '');
-        
-        // 正確讀取 [NAME]: 的值（用於介面顯示）
-        const nameMatch = content.match(/^\s*\[NAME\]\s*[:：]\s*(.+?)\s*$/m);
-        const name = nameMatch ? nameMatch[1].trim() : code;
-        
-        // 通用欄位提取函數
+    const ModuleLoader = {
+        parseModule(content, filename) {
+            // 正確讀取 [MOD_ID]: 的值（用於內部識別和組裝）
+            const codeMatch = content.match(/^\s*\[MOD_ID\]\s*[:：]\s*([A-Za-z0-9_]+)/m);
+            const code = codeMatch ? codeMatch[1].trim() : filename.replace(/\.(txt|ahk)$/, '');
+            
+            // 正確讀取 [NAME]: 的值（只提取後面的中文，不包含 [NAME]: 前綴）
+            const nameMatch = content.match(/^\s*\[NAME\]\s*[:：]\s*(.+?)\s*$/m);
+            const name = nameMatch ? nameMatch[1].trim() : code;
+            
+            // 通用欄位提取函數
             const extractField = (fieldName) => {
-            const regex = new RegExp(`^\\s*\\[${fieldName}\\]\\s*[:：]\\s*(.*?)(?=\\r?\\n\\s*\\[|\\r?\\n\\s*[A-Z_]+\\s*[:：]|$)`, 'ms');
-            const match = content.match(regex);
-            return match ? match[1].trim() : '';
-        };
-        
+                const regex = new RegExp(`^\\s*\\[${fieldName}\\]\\s*[:：]\\s*(.*?)(?=\\r?\\n\\s*\\[|\\r?\\n\\s*[A-Z_]+\\s*[:：]|$)`, 'ms');
+                const match = content.match(regex);
+                return match ? match[1].trim() : '';
+            };
+            
             return {
                 code,           // 用於組裝：[MOD_ID] 的值
-                name,           // 用於顯示：[NAME] 的值
+                name,           // 用於顯示：純中文名稱
                 description: extractField('DESCRIPTION') || extractField('EFFECT') || extractField('CORE_CONCEPT'),
                 weight: parseFloat(extractField('WEIGHT')) || 0.5,
                 blockedBy: extractField('BLOCKED_BY') || extractField('BLOCKED_ACTIONS'),
@@ -394,7 +388,6 @@
         }
     };
 
-    // --- Environment Setup ---
     async function initializeEnvironment() {
         const mask = document.getElementById('mask-status');
         mask.innerText = 'INITIALIZING_STRUCTURE...';
@@ -424,7 +417,6 @@
         renderCurrentView();
     }
 
-    // --- UI Renderers ---
     function renderCurrentView() {
         const container = document.getElementById('view-container');
         container.innerHTML = '';
@@ -674,8 +666,8 @@
                                     <div class="flex flex-wrap gap-2 min-h-[30px] p-2 bg-surface rounded-sm border border-outline-variant/50" id="mod-tags-container-${idx}">
                                         ${item.linkedModules.map(modCode => {
                                             const modInfo = allAvailableModules.find(m => m.code === modCode);
-                                            // 【修正 3】統一顯示格式為 [NAME]: 名稱
-                                            const displayName = modInfo ? `[NAME]: ${modInfo.name}` : modCode;
+                                            // 【修正】只顯示中文名稱，不顯示 [NAME]: 前綴
+                                            const displayName = modInfo ? modInfo.name : modCode;
                                             return `
                                                 <span class="inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-primary-container/10 text-primary-fixed-dim text-xs border border-primary-container/30">
                                                     ${displayName}
@@ -799,7 +791,7 @@
                         ${allAvailableModules.map(m => `
                             <div class="flex justify-between items-center p-2 bg-surface-container-high rounded-sm border border-outline-variant/50 hover:bg-surface-container-highest transition-colors">
                                 <div>
-                                    <div class="font-data-md text-sm text-on-surface">[NAME]: ${m.name}</div>
+                                    <div class="font-data-md text-sm text-on-surface">${m.name}</div>
                                     <div class="font-label-caps text-[8px] text-outline uppercase">${m.code}</div>
                                 </div>
                                 <button class="add-single-mod-btn bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm text-[10px]" data-code="${m.code}">添加</button>
@@ -833,7 +825,8 @@
             return;
         }
 
-        const modListStr = allAvailableModules.map(m => `- ${m.code} : [NAME]: ${m.name}`).join('\n');
+        // 【修正】只顯示中文名稱
+        const modListStr = allAvailableModules.map(m => `- ${m.code} : ${m.name}`).join('\n');
         const promptText = `【天道流 AUTOLINK 推薦請求】\n角色/場景描述：${desc}\n\n當前可用模組庫：\n${modListStr}\n\n任務：請根據描述，從模組庫中推薦最合適的模組代碼（一對多關聯）。\n請嚴格返回 JSON 陣列格式，例如：["CHAR_A_BASE", "MOD_PERSONA_COLD"]。\n不要返回其他內容，只返回 JSON。`;
 
         const modal = document.getElementById('modal-container');
@@ -896,7 +889,7 @@
                         mods.map(m => `
                             <div class="glass-panel p-3 rounded-sm flex justify-between items-center cursor-pointer hover:bg-surface-container-highest transition-colors module-item" data-id="${m.code}" data-cat="${cat.key}">
                                 <div>
-                                    <div class="font-data-md text-sm text-on-surface">[NAME]: ${m.name}</div>
+                                    <div class="font-data-md text-sm text-on-surface">${m.name}</div>
                                     <div class="font-label-caps text-[8px] text-outline uppercase">${m.code}</div>
                                 </div>
                                 <span class="material-symbols-outlined text-outline text-[18px]">edit</span>
@@ -921,7 +914,7 @@
                 <div class="bg-surface border border-outline-variant rounded-sm w-full max-w-2xl h-[80vh] flex flex-col">
                     <div class="p-4 border-b border-outline-variant flex justify-between items-center">
                         <div>
-                            <div class="font-label-caps text-xs text-primary-fixed-dim">編輯模組: [NAME]: ${mod.name}</div>
+                            <div class="font-label-caps text-xs text-primary-fixed-dim">編輯模組: ${mod.name}</div>
                             <div class="font-data-md text-[10px] text-on-surface-variant">ID: ${mod.code} | File ID: ${mod.fileId}</div>
                         </div>
                         <button id="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button>
@@ -1023,7 +1016,8 @@
                             ${modTypes.map(mt => {
                                 const mods = state.moduleData[mt.key] || [];
                                 const charSetting = tabData.characters[c.id]?.settings?.[mt.key] || {};
-                                return `<div class="grid grid-cols-3 gap-1 items-center"><span class="font-label-caps text-[8px] text-on-surface-variant">${mt.label}</span><select class="mod-select col-span-2 bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}"><option value="">(無)</option>${mods.map(m => `<option value="${m.code}" ${charSetting.name === m.code ? 'selected' : ''}>[NAME]: ${m.name}</option>`).join('')}</select></div><div class="grid grid-cols-2 gap-1"><input type="text" placeholder="Must Execute" class="must-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}" value="${charSetting.must || ''}"><input type="text" placeholder="Forbid" class="forbid-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}" value="${charSetting.forbid || ''}"></div>`;
+                                // 【修正】下拉選單只顯示中文名稱
+                                return `<div class="grid grid-cols-3 gap-1 items-center"><span class="font-label-caps text-[8px] text-on-surface-variant">${mt.label}</span><select class="mod-select col-span-2 bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}"><option value="">(無)</option>${mods.map(m => `<option value="${m.code}" ${charSetting.name === m.code ? 'selected' : ''}>${m.name}</option>`).join('')}</select></div><div class="grid grid-cols-2 gap-1"><input type="text" placeholder="Must Execute" class="must-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}" value="${charSetting.must || ''}"><input type="text" placeholder="Forbid" class="forbid-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}" value="${charSetting.forbid || ''}"></div>`;
                             }).join('')}
                         </div>
                     </div>
@@ -1098,7 +1092,6 @@
                 const charObj = book ? book.actors.find(a => a.id === charId) : null;
                 if (charData.checked && charObj) {
                     hasChars = true;
-                    // 【修正】使用 [] 而非 () 來引用模組ID
                     outline += `  - [${charObj.name}] ${charObj.oopCode ? '['+charObj.oopCode+']' : ''}:\n`;
                     const labelMap = {};
                     state.config.outlineModTypes.forEach(mt => labelMap[mt.key] = mt.label);
@@ -1118,7 +1111,6 @@
         return outline;
     }
 
-    // --- Event Listeners & Init ---
     document.getElementById('auth-btn').addEventListener('click', () => {
         if (!state.tokenClient) {
             alert('Google 登入服務尚未載入完成，請稍候片刻或檢查網路連線。');
@@ -1156,7 +1148,6 @@
     document.getElementById('nav-collapse-btn').addEventListener('click', () => toggleNav(true));
     document.getElementById('nav-expand-btn').addEventListener('click', () => toggleNav(false));
 
-    // 啟動 API 智能載入
     window.addEventListener('load', initGoogleApis);
 </script>
 </body>
