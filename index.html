@@ -91,7 +91,6 @@
 
 <!-- === 可收起導航選單 === -->
 <nav id="main-nav" class="fixed bottom-0 w-full z-50 transition-all duration-300 ease-in-out">
-    <!-- 展開狀態：完整選單 -->
     <div id="nav-expanded" class="h-16 bg-surface-container border-t border-outline-variant flex items-center px-2 relative">
         <div class="flex items-center justify-around flex-1">
             <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="system">
@@ -115,13 +114,11 @@
                 <span class="font-label-caps text-[8px] uppercase">Triggers</span>
             </button>
         </div>
-        <!-- 收起按鈕 -->
         <button id="nav-collapse-btn" class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant hover:bg-primary-container hover:text-on-primary-fixed flex items-center justify-center transition-all" title="收起選單">
             <span class="material-symbols-outlined text-[18px]">keyboard_arrow_down</span>
         </button>
     </div>
     
-    <!-- 收起狀態：浮動展開按鈕 (FAB) -->
     <div id="nav-collapsed" class="hidden fixed bottom-4 right-4 z-50">
         <button id="nav-expand-btn" class="w-14 h-14 rounded-full bg-primary-container text-on-primary-fixed shadow-2xl flex items-center justify-center cyan-glow hover:scale-110 active:scale-95 transition-transform" title="展開選單">
             <span class="material-symbols-outlined text-[28px]">menu</span>
@@ -161,23 +158,13 @@
         navCollapsed: false
     };
 
-    // --- Google API Initialization ---
-    function gapiLoaded() { gapi.load('client', initializeGapiClient); }
-    async function initializeGapiClient() {
-        await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
-        state.gapiInited = true;
-        attemptAutoLogin();
-    }
-    function gisLoaded() {
-        state.tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: TDF_CONFIG.CLIENT_ID, scope: TDF_CONFIG.SCOPES, callback: handleTokenResponse,
-        });
-        state.gisInited = true;
-        attemptAutoLogin();
-    }
-
+    // --- 【核心修復】Google API 智能輪詢初始化 ---
     function handleTokenResponse(resp) {
-        if (resp.error !== undefined) throw (resp);
+        if (resp.error !== undefined) {
+            console.error('Token error:', resp);
+            alert('登入失敗: ' + resp.error);
+            return;
+        }
         localStorage.setItem('tdf_access_token', resp.access_token);
         performPostLoginActions();
     }
@@ -190,6 +177,26 @@
                 performPostLoginActions();
             }
         }
+    }
+
+    function initGoogleApis() {
+        // 如果 Google 的 JS 還沒載入完成，則 200ms 後再次檢查
+        if (typeof gapi === 'undefined' || typeof google === 'undefined' || !google.accounts) {
+            setTimeout(initGoogleApis, 200);
+            return;
+        }
+        
+        gapi.load('client', async () => {
+            await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
+            state.gapiInited = true;
+            attemptAutoLogin();
+        });
+
+        state.tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: TDF_CONFIG.CLIENT_ID, scope: TDF_CONFIG.SCOPES, callback: handleTokenResponse,
+        });
+        state.gisInited = true;
+        attemptAutoLogin();
     }
 
     async function performPostLoginActions() {
@@ -381,7 +388,7 @@
     async function initializeEnvironment() {
         const mask = document.getElementById('mask-status');
         mask.innerText = 'INITIALIZING_STRUCTURE...';
-        const createStructure = async (node, parentId) {
+        const createStructure = async (node, parentId) => {
             for (const [key, value] of Object.entries(node)) {
                 mask.innerText = `SYNCING ${key}...`;
                 let currentId = await DriveAPI.findId(key, parentId, true);
@@ -487,7 +494,6 @@
         };
     }
 
-    // --- Books View ---
     function renderBooksView(container) {
         const book = getCurrentBook();
         const tabs = [
@@ -539,7 +545,6 @@
         }
     }
 
-    // 【核心修復】靜默同步輸入框資料至 State，防止重新渲染時資料丟失
     function syncActorSceneInputs() {
         const content = document.getElementById('book-tab-content');
         if (!content) return;
@@ -688,20 +693,19 @@
             };
             
             document.getElementById('save-list-btn').onclick = () => {
-                syncActorSceneInputs(); // 確保最後一刻同步
+                syncActorSceneInputs();
                 saveBooksData();
                 alert('已儲存！');
             };
 
             content.querySelectorAll('.del-item-btn').forEach(btn => {
                 btn.onclick = () => { 
-                    syncActorSceneInputs(); // 刪除前先同步其他卡片資料
+                    syncActorSceneInputs();
                     list.splice(btn.dataset.idx, 1); 
                     renderBookTabContent(); 
                 };
             });
 
-            // 【核心修復】移除 Tag 時，先同步輸入框資料再重新渲染
             content.querySelectorAll('.remove-mod-btn').forEach(btn => {
                 btn.onclick = (e) => {
                     syncActorSceneInputs(); 
@@ -771,7 +775,6 @@
         }
     }
 
-    // --- Modal Functions for OOP Association ---
     function openAddModuleModal(idx, list, allAvailableModules) {
         const modal = document.getElementById('modal-container');
         modal.innerHTML = `
@@ -798,7 +801,6 @@
         modal.classList.remove('hidden');
         document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
         
-        // 【核心修復】添加模組後，先同步輸入框資料再重新渲染
         modal.querySelectorAll('.add-single-mod-btn').forEach(btn => {
             btn.onclick = () => {
                 syncActorSceneInputs(); 
@@ -852,7 +854,6 @@
         };
         document.getElementById('close-autolink-btn').onclick = () => modal.classList.add('hidden');
         
-        // 【核心修復】套用 AUTOLINK 後，先同步輸入框資料再重新渲染
         document.getElementById('apply-autolink-btn').onclick = () => {
             const resultStr = document.getElementById('autolink-result-input').value;
             try {
@@ -872,7 +873,6 @@
         };
     }
 
-    // --- Modules View ---
     function renderModulesView(container) {
         let html = `<div class="p-gutter space-y-4 pb-40">`;
         for (const cat of state.config.categories) {
@@ -939,7 +939,6 @@
         };
     }
 
-    // --- Outline View ---
     function renderOutlineView(container) {
         const book = getCurrentBook();
         if (!book) {
@@ -1036,7 +1035,6 @@
         };
     }
 
-    // --- Triggers View ---
     function renderTriggersView(container) {
         const prompts = state.config.prompts || { "AUDIT": "【自我審計協議】\n請執行自我審計，檢查上述生成內容是否違反當前生效模組。" };
         const book = getCurrentBook();
@@ -1104,14 +1102,16 @@
 
     // --- Event Listeners & Init ---
     document.getElementById('auth-btn').addEventListener('click', () => {
-        if (!state.tokenClient) return;
+        if (!state.tokenClient) {
+            alert('Google 登入服務尚未載入完成，請稍候片刻或檢查網路連線。');
+            return;
+        }
         if (gapi.client.getToken()) { performPostLoginActions(); return; }
         state.tokenClient.requestAccessToken({prompt: 'consent'});
     });
     document.getElementById('logout-btn').addEventListener('click', () => { localStorage.removeItem('tdf_access_token'); gapi.client.setToken(null); location.reload(); });
     document.querySelectorAll('.nav-btn').forEach(btn => { btn.onclick = () => { state.currentView = btn.dataset.view; renderCurrentView(); }; });
     
-    // === 導航選單收起/展開邏輯 ===
     function toggleNav(collapse) {
         const expanded = document.getElementById('nav-expanded');
         const collapsed = document.getElementById('nav-collapsed');
@@ -1138,7 +1138,8 @@
     document.getElementById('nav-collapse-btn').addEventListener('click', () => toggleNav(true));
     document.getElementById('nav-expand-btn').addEventListener('click', () => toggleNav(false));
 
-    window.onload = () => { gapiLoaded(); gisLoaded(); };
+    // 啟動 API 智能載入
+    window.addEventListener('load', initGoogleApis);
 </script>
 </body>
 </html>
