@@ -64,13 +64,13 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.008)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.009)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.008)</h1>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.009)</h1>
     </div>
     <div class="flex items-center gap-3">
         <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -330,18 +330,14 @@
         renderCurrentView();
     }
 
-    // --- Module Loader & Parser ---
     const ModuleLoader = {
         parseModule(content, filename) {
-            // 正確讀取 [MOD_ID]: 的值（用於內部識別和組裝）
             const codeMatch = content.match(/^\s*\[MOD_ID\]\s*[:：]\s*([A-Za-z0-9_]+)/m);
             const code = codeMatch ? codeMatch[1].trim() : filename.replace(/\.(txt|ahk)$/, '');
             
-            // 正確讀取 [NAME]: 的值（只提取後面的中文，不包含 [NAME]: 前綴）
             const nameMatch = content.match(/^\s*\[NAME\]\s*[:：]\s*(.+?)\s*$/m);
             const name = nameMatch ? nameMatch[1].trim() : code;
             
-            // 通用欄位提取函數
             const extractField = (fieldName) => {
                 const regex = new RegExp(`^\\s*\\[${fieldName}\\]\\s*[:：]\\s*(.*?)(?=\\r?\\n\\s*\\[|\\r?\\n\\s*[A-Z_]+\\s*[:：]|$)`, 'ms');
                 const match = content.match(regex);
@@ -349,8 +345,8 @@
             };
             
             return {
-                code,           // 用於組裝：[MOD_ID] 的值
-                name,           // 用於顯示：純中文名稱
+                code,
+                name,
                 description: extractField('DESCRIPTION') || extractField('EFFECT') || extractField('CORE_CONCEPT'),
                 weight: parseFloat(extractField('WEIGHT')) || 0.5,
                 blockedBy: extractField('BLOCKED_BY') || extractField('BLOCKED_ACTIONS'),
@@ -666,7 +662,6 @@
                                     <div class="flex flex-wrap gap-2 min-h-[30px] p-2 bg-surface rounded-sm border border-outline-variant/50" id="mod-tags-container-${idx}">
                                         ${item.linkedModules.map(modCode => {
                                             const modInfo = allAvailableModules.find(m => m.code === modCode);
-                                            // 【修正】只顯示中文名稱，不顯示 [NAME]: 前綴
                                             const displayName = modInfo ? modInfo.name : modCode;
                                             return `
                                                 <span class="inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-primary-container/10 text-primary-fixed-dim text-xs border border-primary-container/30">
@@ -825,7 +820,6 @@
             return;
         }
 
-        // 【修正】只顯示中文名稱
         const modListStr = allAvailableModules.map(m => `- ${m.code} : ${m.name}`).join('\n');
         const promptText = `【天道流 AUTOLINK 推薦請求】\n角色/場景描述：${desc}\n\n當前可用模組庫：\n${modListStr}\n\n任務：請根據描述，從模組庫中推薦最合適的模組代碼（一對多關聯）。\n請嚴格返回 JSON 陣列格式，例如：["CHAR_A_BASE", "MOD_PERSONA_COLD"]。\n不要返回其他內容，只返回 JSON。`;
 
@@ -1016,7 +1010,6 @@
                             ${modTypes.map(mt => {
                                 const mods = state.moduleData[mt.key] || [];
                                 const charSetting = tabData.characters[c.id]?.settings?.[mt.key] || {};
-                                // 【修正】下拉選單只顯示中文名稱
                                 return `<div class="grid grid-cols-3 gap-1 items-center"><span class="font-label-caps text-[8px] text-on-surface-variant">${mt.label}</span><select class="mod-select col-span-2 bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}"><option value="">(無)</option>${mods.map(m => `<option value="${m.code}" ${charSetting.name === m.code ? 'selected' : ''}>${m.name}</option>`).join('')}</select></div><div class="grid grid-cols-2 gap-1"><input type="text" placeholder="Must Execute" class="must-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}" value="${charSetting.must || ''}"><input type="text" placeholder="Forbid" class="forbid-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}" value="${charSetting.forbid || ''}"></div>`;
                             }).join('')}
                         </div>
@@ -1093,6 +1086,24 @@
                 if (charData.checked && charObj) {
                     hasChars = true;
                     outline += `  - [${charObj.name}] ${charObj.oopCode ? '['+charObj.oopCode+']' : ''}:\n`;
+                    
+                    // 【修正】讀取演員池中預設的 OOP 模組關聯 (linkedModules)
+                    if (charObj.linkedModules && charObj.linkedModules.length > 0) {
+                        outline += `    - OOP 模組關聯 (Templates):\n`;
+                        charObj.linkedModules.forEach(modCode => {
+                            // 查找模組的中文名稱
+                            let modName = modCode;
+                            for (const catKey in state.moduleData) {
+                                const mod = state.moduleData[catKey].find(m => m.code === modCode);
+                                if (mod) {
+                                    modName = mod.name;
+                                    break;
+                                }
+                            }
+                            outline += `      - ${modName} [${modCode}]\n`;
+                        });
+                    }
+                    
                     const labelMap = {};
                     state.config.outlineModTypes.forEach(mt => labelMap[mt.key] = mt.label);
                     for (const key in charData.settings) {
