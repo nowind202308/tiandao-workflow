@@ -65,7 +65,7 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.002)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.004)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
@@ -445,7 +445,7 @@
                     <div class="flex justify-between items-center"><span class="font-data-md text-sm">Total Books:</span><span class="font-data-md text-sm text-primary-fixed-dim">${state.books.length}</span></div>
                 </div>
                 <button id="init-btn" class="w-full bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow"><span class="material-symbols-outlined">rocket_launch</span> 一鍵初始化專案環境</button>
-                <button id="reload-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant"> 重新載入模組庫</button>
+                <button id="reload-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant">🔄 重新載入模組庫</button>
             </div>
         `;
         document.getElementById('init-btn').onclick = async () => {
@@ -591,7 +591,6 @@
             const isActor = state.currentBookTab === 'actors';
             const list = isActor ? book.actors : book.scenes;
             
-            // 收集所有可用模組
             let allAvailableModules = [];
             for (const key in state.moduleData) {
                 state.moduleData[key].forEach(m => {
@@ -607,7 +606,6 @@
                     </div>
                     <div class="space-y-4">
                         ${list.length === 0 ? '<div class="text-xs text-on-surface-variant">尚未設定，請點擊新增。</div>' : list.map((item, idx) => {
-                            // 兼容舊數據：將 oopCode 轉換為 linkedModules 陣列
                             if (!item.linkedModules) {
                                 item.linkedModules = item.oopCode ? [item.oopCode] : [];
                             }
@@ -657,7 +655,7 @@
                             </div>
                         `}).join('')}
                     </div>
-                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-8">💾 儲存${isActor ? '演員' : '場景'}池</button>
+                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-8"> 儲存${isActor ? '演員' : '場景'}池</button>
                 </div>
             `;
 
@@ -714,7 +712,7 @@
                                         <td class="py-2 px-2"><input type="text" value="${ch.name}" data-idx="${idx}" class="chap-name flex-1 bg-transparent border-b border-outline text-on-surface w-full focus:outline-none focus:border-primary-fixed-dim"></td>
                                         <td class="py-2 px-2">
                                             <select data-idx="${idx}" class="chap-status bg-surface border border-outline text-on-surface px-1 py-0.5 rounded-sm text-[10px]">
-                                                <option value="Draft" ${ch.status === 'Draft' ? 'selected' : ''}>📝 草稿</option>
+                                                <option value="Draft" ${ch.status === 'Draft' ? 'selected' : ''}> 草稿</option>
                                                 <option value="In-Progress" ${ch.status === 'In-Progress' ? 'selected' : ''}>⚙️ 進行中</option>
                                                 <option value="Completed" ${ch.status === 'Completed' ? 'selected' : ''}>✅ 已完成</option>
                                             </select>
@@ -1029,6 +1027,17 @@
         document.getElementById('outline-preview').innerText = generateOutline();
     }
 
+    // --- 輔助函數：根據代碼查找模組 ---
+    function findModuleByCode(code) {
+        if (!state.moduleData) return null;
+        for (const key in state.moduleData) {
+            const mod = state.moduleData[key].find(m => m.code === code);
+            if (mod) return mod;
+        }
+        return null;
+    }
+
+    // --- 核心修正：generateOutline 函數 ---
     function generateOutline() {
         const d = state.outlineData;
         const book = getCurrentBook();
@@ -1043,18 +1052,51 @@
             const tab = d.tabs[i];
             outline += `【${tabNames[i]}】\n`;
             const sceneObj = book ? book.scenes.find(s => s.id === tab.scene) : null;
-            if (sceneObj) outline += `- 全局場景：${sceneObj.name} ${sceneObj.oopCode ? '['+sceneObj.oopCode+']' : ''}\n`;
+            if (sceneObj) {
+                outline += `- 全局場景：${sceneObj.name}\n`;
+                // 場景的 OOP 模組也要帶入
+                if (sceneObj.linkedModules && sceneObj.linkedModules.length > 0) {
+                    outline += `- 場景生效模組:\n`;
+                    sceneObj.linkedModules.forEach(modCode => {
+                        const mod = findModuleByCode(modCode);
+                        if (mod) {
+                            let modContent = mod.rawContent || `[${mod.code}] ${mod.description}`;
+                            modContent = modContent.replace(/\n/g, '\n      ');
+                            outline += `  - ${modContent}\n`;
+                        }
+                    });
+                }
+            }
             if (tab.hook) outline += `- HOOK承接詞：${tab.hook}\n`;
-            outline += "- 出場人物:\n";
+            outline += "- 出場人物與 OOP 模組狀態:\n";
             let hasChars = false;
             for (const charId in tab.characters) {
                 const charData = tab.characters[charId];
                 const charObj = book ? book.actors.find(a => a.id === charId) : null;
                 if (charData.checked && charObj) {
                     hasChars = true;
-                    outline += `  - [${charObj.name}] ${charObj.oopCode ? '('+charObj.oopCode+')' : ''}:\n`;
+                    outline += `  - [${charObj.name}] (標籤: ${charObj.tags || '無'})\n`;
+                    
+                    // 核心修正：帶入演員池綁定的 OOP 模組
+                    if (charObj.linkedModules && charObj.linkedModules.length > 0) {
+                        outline += `    - [載入 OOP 模組]:\n`;
+                        charObj.linkedModules.forEach(modCode => {
+                            const mod = findModuleByCode(modCode);
+                            if (mod) {
+                                let modContent = mod.rawContent || `[${mod.code}] ${mod.description}`;
+                                modContent = modContent.replace(/\n/g, '\n      ');
+                                outline += `      - ${modContent}\n`;
+                            } else {
+                                outline += `      - [${modCode}] (未找到模組內容)\n`;
+                            }
+                        });
+                    }
+
+                    // 保留原有的段落專屬設定 (Must/Forbid)
                     const labelMap = {};
-                    state.config.outlineModTypes.forEach(mt => labelMap[mt.key] = mt.label);
+                    if (state.config && state.config.outlineModTypes) {
+                        state.config.outlineModTypes.forEach(mt => labelMap[mt.key] = mt.label);
+                    }
                     for (const key in charData.settings) {
                         const s = charData.settings[key];
                         if (s.name) outline += `    - ${labelMap[key] || key}: ${s.name}\n`;
