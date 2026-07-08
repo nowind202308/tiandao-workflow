@@ -64,13 +64,13 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.015)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.016)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.015)</h1>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.016)</h1>
     </div>
     <div class="flex items-center gap-3">
         <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -405,16 +405,17 @@
             
             for (const cat of state.config.categories) {
                 let currentParentId = state.driveIds.root;
-                let validPath = true;
-                for (const folderName of cat.path) {
-                    const id = await DriveAPI.findId(folderName, currentParentId, true);
-                    if (!id) { validPath = false; break; }
-                    currentParentId = id;
-                }
                 
-                if (!validPath) {
-                    console.warn(`[Index] 跳過分類 ${cat.key}，路徑不存在: ${cat.path.join('/')}`);
-                    continue;
+                // 【關鍵修復】遍歷路徑時，自動建立缺失的資料夾
+                for (const folderName of cat.path) {
+                    let folderId = await DriveAPI.findId(folderName, currentParentId, true);
+                    if (!folderId) {
+                        // 自動建立缺失的資料夾
+                        console.log(`[Index] 自動建立缺失資料夾: ${folderName}`);
+                        const res = await DriveAPI.createFolder(folderName, currentParentId);
+                        folderId = res.id;
+                    }
+                    currentParentId = folderId;
                 }
                 
                 scannedCategories++;
@@ -1335,7 +1336,6 @@
             alert('模組已覆寫！');
         };
         
-        // 【強化 2】另存新模組時，自動建立缺失的資料夾
         document.getElementById('save-as').onclick = async () => {
             const newName = prompt('請輸入新模組名稱 (不含 .txt):'); if (!newName) return;
             const content = document.getElementById('editor-content').value;
@@ -1350,7 +1350,6 @@
             for (const folderName of cat.path) {
                 let folderId = await DriveAPI.findId(folderName, currentParentId, true);
                 if (!folderId) {
-                    // 自動創建缺失的資料夾
                     const res = await DriveAPI.createFolder(folderName, currentParentId);
                     folderId = res.id;
                 }
