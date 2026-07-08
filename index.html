@@ -73,7 +73,7 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.017)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.018)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
@@ -146,7 +146,8 @@
         DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
         WORKSPACE_ROOT: 'TianDao_Workspace',
         CONFIG_FILE: 'TianDao_Config.json',
-        BOOKS_FILE: 'Books_Data.json'
+        BOOKS_FILE: 'Books_Data.json',
+        MODULES_INDEX_FILE: 'Modules_Index.json' // 新增：模組索引檔
     };
 
     const state = {
@@ -357,28 +358,86 @@
             };
         },
         async loadAll() {
-            if (!state.config || !state.driveIds.root) return;
+            if (!state.driveIds.root) return;
             state.moduleData = {};
-            for (const cat of state.config.categories) {
-                let currentParentId = state.driveIds.root;
-                let validPath = true;
-                for (const folderName of cat.path) {
-                    const id = await DriveAPI.findId(folderName, currentParentId, true);
-                    if (!id) { validPath = false; break; }
-                    currentParentId = id;
+            
+            // === 新增：優先嘗試載入 Modules_Index.json ===
+            const indexId = await DriveAPI.findId(TDF_CONFIG.MODULES_INDEX_FILE, state.driveIds.root, false);
+            let indexLoaded = false;
+            if (indexId) {
+                try {
+                    const indexContent = await DriveAPI.getFileContent(indexId);
+                    const indexData = JSON.parse(indexContent);
+                    
+                    // 如果索引檔有定義 categories，則優先使用或合併
+                    if (indexData.categories && indexData.categories.length > 0) {
+                        if (!state.config) state.config = {};
+                        state.config.categories = indexData.categories;
+                    }
+                    
+                    // 載入 modules (支援 modules 陣列或根目錄即為陣列的格式)
+                    const modulesArray = indexData.modules || (Array.isArray(indexData) ? indexData : []);
+                    if (modulesArray.length > 0) {
+                        for (const mod of modulesArray) {
+                            if (!mod.category) continue;
+                            if (!state.moduleData[mod.category]) {
+                                state.moduleData[mod.category] = [];
+                            }
+                            state.moduleData[mod.category].push({
+                                code: mod.code,
+                                name: mod.name || mod.code,
+                                category: mod.category,
+                                fileId: mod.fileId || null,
+                                description: mod.description || '',
+                                rawContent: mod.rawContent || '' 
+                            });
+                        }
+                        indexLoaded = true;
+                        console.log(`[TianDao] Loaded ${modulesArray.length} modules from Modules_Index.json`);
+                    }
+                } catch (e) {
+                    console.error('[TianDao] Error parsing Modules_Index.json:', e);
                 }
-                if (!validPath) continue;
-                const files = await DriveAPI.listFiles(currentParentId);
-                state.moduleData[cat.key] = [];
-                for (const file of files) {
-                    if (file.name.endsWith('.txt') && file.name !== 'README.txt') {
-                        try {
-                            const content = await DriveAPI.getFileContent(file.id);
-                            const parsed = this.parseModule(content, file.name);
-                            parsed.fileId = file.id;
-                            parsed.category = cat.key;
-                            state.moduleData[cat.key].push(parsed);
-                        } catch (e) { console.error(`Error loading ${file.name}`, e); }
+            }
+
+            // === 既有邏輯：使用 config.categories 遍歷 (作為 Fallback 或補充) ===
+            if (state.config && state.config.categories) {
+                for (const cat of state.config.categories) {
+                    if (!state.moduleData[cat.key]) {
+                        state.moduleData[cat.key] = [];
+                    }
+                    let currentParentId = state.driveIds.root;
+                    let validPath = true;
+                    for (const folderName of cat.path) {
+                        const id = await DriveAPI.findId(folderName, currentParentId, true);
+                        if (!id) { validPath = false; break; }
+                        currentParentId = id;
+                    }
+                    if (!validPath) continue;
+                    
+                    const files = await DriveAPI.listFiles(currentParentId);
+                    for (const file of files) {
+                        if (file.name.endsWith('.txt') && file.name !== 'README.txt') {
+                            // 檢查是否已經從 Index 載入過，避免重複
+                            const existingMod = state.moduleData[cat.key].find(m => m.fileId === file.id || m.code === file.name.replace('.txt', ''));
+                            if (existingMod) {
+                                // 如果 Index 沒有 rawContent，這裡補充讀取
+                                if (!existingMod.rawContent) {
+                                    try {
+                                        existingMod.rawContent = await DriveAPI.getFileContent(file.id);
+                                    } catch(e) {}
+                                }
+                                continue; 
+                            }
+                            
+                            try {
+                                const content = await DriveAPI.getFileContent(file.id);
+                                const parsed = this.parseModule(content, file.name);
+                                parsed.fileId = file.id;
+                                parsed.category = cat.key;
+                                state.moduleData[cat.key].push(parsed);
+                            } catch (e) { console.error(`Error loading ${file.name}`, e); }
+                        }
                     }
                 }
             }
@@ -405,7 +464,7 @@
                         }
                     }
                 } else if (typeof value === 'object' && value !== null) {
-                    await createStructure(value, currentParentId);
+                    await createStructure(value, currentId);
                 }
             }
         };
@@ -599,7 +658,6 @@
             const isActor = state.currentBookTab === 'actors';
             const list = isActor ? book.actors : book.scenes;
             
-            // 收集所有可用模組
             let allAvailableModules = [];
             for (const key in state.moduleData) {
                 state.moduleData[key].forEach(m => {
@@ -615,7 +673,6 @@
                     </div>
                     <div class="space-y-4">
                         ${list.length === 0 ? '<div class="text-xs text-on-surface-variant">尚未設定，請點擊新增。</div>' : list.map((item, idx) => {
-                            // 兼容舊數據：將 oopCode 轉換為 linkedModules 陣列
                             if (!item.linkedModules) {
                                 item.linkedModules = item.oopCode ? [item.oopCode] : [];
                             }
@@ -665,7 +722,7 @@
                             </div>
                         `}).join('')}
                     </div>
-                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-8"> 儲存${isActor ? '演員' : '場景'}池</button>
+                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-8">💾 儲存${isActor ? '演員' : '場景'}池</button>
                 </div>
             `;
 
@@ -997,7 +1054,7 @@
                     } else if (moduleCount === 2) {
                         marginPercent = 60;
                         marginClass = 'margin-medium';
-                        marginLabel = ' 平衡狀態';
+                        marginLabel = '🟡 平衡狀態';
                     } else if (moduleCount >= 3) {
                         marginPercent = Math.max(20, 100 - (moduleCount * 15));
                         marginClass = 'margin-low';
@@ -1071,11 +1128,6 @@
                                         </div>
                                     `).join('') : '<div class="text-xs text-on-surface-variant/50 p-2 text-center">尚未添加模組，請點擊上方按鈕新增</div>'}
                                 </div>
-                            </div>
-                            
-                            <div class="space-y-1 pt-2 border-t border-outline-variant">
-                                <label class="font-label-caps text-[8px] text-on-surface-variant">自定義標籤 (Tags)</label>
-                                <input type="text" value="${charData.tags || ''}" data-char="${c.id}" class="char-tags-input w-full bg-surface border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" placeholder="例：主角, 敵對">
                             </div>
                         </div>
                     </div>
@@ -1175,15 +1227,6 @@
             };
         });
 
-        // Tags 輸入
-        tabContent.querySelectorAll('.char-tags-input').forEach(inp => {
-            inp.oninput = (e) => {
-                const charCode = e.target.dataset.char;
-                if (!tabData.characters[charCode]) tabData.characters[charCode] = { checked: false, moduleRows: [] };
-                tabData.characters[charCode].tags = e.target.value;
-            };
-        });
-
         document.getElementById('inherit-btn').onclick = () => {
             const srcIdx = parseInt(document.getElementById('inherit-src').value);
             const srcTab = state.outlineData.tabs[srcIdx];
@@ -1254,18 +1297,6 @@
                                 if (row.reason) outline += `      REASON: ${row.reason}\n`;
                             }
                         });
-                    }
-                    
-                    // 兼容舊格式
-                    const labelMap = {};
-                    state.config.outlineModTypes.forEach(mt => labelMap[mt.key] = mt.label);
-                    if (charData.settings) {
-                        for (const key in charData.settings) {
-                            const s = charData.settings[key];
-                            if (s.name) outline += `    - ${labelMap[key] || key}: ${s.name}\n`;
-                            if (s.must) outline += `    - [MUST_EXECUTE (${labelMap[key] || key})]: ${s.must}\n`;
-                            if (s.forbid) outline += `    - [FORBIDDEN_EXECUTE (${labelMap[key] || key})]: ${s.forbid}\n`;
-                        }
                     }
                 }
             }
