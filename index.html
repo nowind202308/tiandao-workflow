@@ -29,16 +29,20 @@
         .tab-active { border-bottom: 2px solid #00f2ff; color: #00f2ff; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
 
+        /* === 導航選單收起/展開動畫 === */
         #main-nav { transform: translateY(0); transition: transform 0.3s ease-in-out; }
         #main-nav.nav-hidden { transform: translateY(100%); }
         #nav-expanded { opacity: 1; transition: opacity 0.3s ease; }
         #nav-collapsed { opacity: 0; transform: scale(0.5); transition: opacity 0.3s ease, transform 0.3s ease; }
         #nav-collapsed.show { opacity: 1; transform: scale(1); }
         
-        /* 標籤雲樣式 */
-        .tag-cloud-btn { transition: all 0.2s ease; }
-        .tag-cloud-btn:hover { transform: translateY(-2px); }
-        .tag-cloud-btn.active { background: #00f2ff; color: #002022; }
+        /* === 表列式模組設定樣式 === */
+        .module-row { transition: all 0.3s ease; }
+        .module-row:hover { background: rgba(0, 242, 255, 0.05); }
+        .creative-margin-indicator { transition: all 0.3s ease; }
+        .margin-high { color: #4ade80; }
+        .margin-medium { color: #facc15; }
+        .margin-low { color: #f87171; }
     </style>
 
     <script id="tailwind-config">
@@ -75,7 +79,7 @@
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.017)</h1>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller</h1>
     </div>
     <div class="flex items-center gap-3">
         <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -93,7 +97,9 @@
     <div id="view-container" class="flex-1 flex flex-col"></div>
 </div>
 
+<!-- === 可收起導航選單 === -->
 <nav id="main-nav" class="fixed bottom-0 w-full z-50 transition-all duration-300 ease-in-out">
+    <!-- 展開狀態：完整選單 -->
     <div id="nav-expanded" class="h-16 bg-surface-container border-t border-outline-variant flex items-center px-2 relative">
         <div class="flex items-center justify-around flex-1">
             <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="system">
@@ -108,10 +114,6 @@
                 <span class="material-symbols-outlined text-[20px]">database</span>
                 <span class="font-label-caps text-[8px] uppercase">Modules</span>
             </button>
-            <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="tags">
-                <span class="material-symbols-outlined text-[20px]">sell</span>
-                <span class="font-label-caps text-[8px] uppercase">Tags</span>
-            </button>
             <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="outline">
                 <span class="material-symbols-outlined text-[20px]">edit_document</span>
                 <span class="font-label-caps text-[8px] uppercase">Outline</span>
@@ -121,11 +123,13 @@
                 <span class="font-label-caps text-[8px] uppercase">Triggers</span>
             </button>
         </div>
+        <!-- 收起按鈕 -->
         <button id="nav-collapse-btn" class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant hover:bg-primary-container hover:text-on-primary-fixed flex items-center justify-center transition-all" title="收起選單">
             <span class="material-symbols-outlined text-[18px]">keyboard_arrow_down</span>
         </button>
     </div>
     
+    <!-- 收起狀態：浮動展開按鈕 (FAB) -->
     <div id="nav-collapsed" class="hidden fixed bottom-4 right-4 z-50">
         <button id="nav-expand-btn" class="w-14 h-14 rounded-full bg-primary-container text-on-primary-fixed shadow-2xl flex items-center justify-center cyan-glow hover:scale-110 active:scale-95 transition-transform" title="展開選單">
             <span class="material-symbols-outlined text-[28px]">menu</span>
@@ -147,7 +151,7 @@
 
     const state = {
         tokenClient: null, gapiInited: false, gisInited: false,
-        driveIds: { root: null, config: null },
+        driveIds: { root: null },
         config: null,
         moduleData: {}, 
         booksFileId: null,
@@ -162,23 +166,26 @@
         currentView: 'system',
         currentTab: 0,
         isInitialized: false,
-        navCollapsed: false,
-        moduleSearchQuery: '',
-        moduleCollapsedCategories: new Set(),
-        moduleVisibleCategories: new Set(),
-        moduleCategoriesInitialized: false,
-        // 標籤管理系統狀態
-        selectedModules: new Set(),
-        tagFilter: null,
-        tagSearchQuery: ''
+        navCollapsed: false
     };
 
+    // --- Google API Initialization ---
+    function gapiLoaded() { gapi.load('client', initializeGapiClient); }
+    async function initializeGapiClient() {
+        await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
+        state.gapiInited = true;
+        attemptAutoLogin();
+    }
+    function gisLoaded() {
+        state.tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: TDF_CONFIG.CLIENT_ID, scope: TDF_CONFIG.SCOPES, callback: handleTokenResponse,
+        });
+        state.gisInited = true;
+        attemptAutoLogin();
+    }
+
     function handleTokenResponse(resp) {
-        if (resp.error !== undefined) {
-            console.error('Token error:', resp);
-            alert('登入失敗: ' + resp.error);
-            return;
-        }
+        if (resp.error !== undefined) throw (resp);
         localStorage.setItem('tdf_access_token', resp.access_token);
         performPostLoginActions();
     }
@@ -191,25 +198,6 @@
                 performPostLoginActions();
             }
         }
-    }
-
-    function initGoogleApis() {
-        if (typeof gapi === 'undefined' || typeof google === 'undefined' || !google.accounts) {
-            setTimeout(initGoogleApis, 200);
-            return;
-        }
-        
-        gapi.load('client', async () => {
-            await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
-            state.gapiInited = true;
-            attemptAutoLogin();
-        });
-
-        state.tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: TDF_CONFIG.CLIENT_ID, scope: TDF_CONFIG.SCOPES, callback: handleTokenResponse,
-        });
-        state.gisInited = true;
-        attemptAutoLogin();
     }
 
     async function performPostLoginActions() {
@@ -227,14 +215,11 @@
         document.getElementById('mask-status').innerText = 'CHECKING_CONFIG...';
         const configId = await DriveAPI.findId(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, false);
         if (configId) {
-            state.driveIds.config = configId;
             const content = await DriveAPI.getFileContent(configId);
             state.config = JSON.parse(content);
             state.isInitialized = true;
             document.getElementById('mask-status').innerText = 'LOADING_MODULES...';
-            await ModuleLoader.loadAll(true);
-        } else {
-            alert('未找到 TianDao_Config.json，請先初始化環境。');
+            await ModuleLoader.loadAll();
         }
 
         document.getElementById('mask-status').innerText = 'SYNCING_BOOKS...';
@@ -245,6 +230,7 @@
         renderCurrentView();
     }
 
+    // --- Drive API Wrapper ---
     const DriveAPI = {
         async findId(name, parentId = null, isFolder = true) {
             const mime = isFolder ? "mimeType = 'application/vnd.google-apps.folder'" : "mimeType != 'application/vnd.google-apps.folder'";
@@ -294,6 +280,7 @@
         }
     };
 
+    // --- Books Data Management ---
     async function loadBooksData() {
         const fileId = await DriveAPI.findId(TDF_CONFIG.BOOKS_FILE, state.driveIds.root, false);
         if (fileId) {
@@ -350,145 +337,27 @@
         renderCurrentView();
     }
 
+    // --- Module Loader & Parser ---
     const ModuleLoader = {
-        INDEX_FILE_NAME: 'Modules_Index.json',
-        
         parseModule(content, filename) {
-            const codeMatch = content.match(/^\s*\[MOD_ID\]\s*[:：]\s*([A-Za-z0-9_]+)/m);
-            const code = codeMatch ? codeMatch[1].trim() : filename.replace(/\.(txt|ahk)$/, '');
-            const nameMatch = content.match(/^\s*\[NAME\]\s*[:：]\s*(.+?)\s*$/m);
-            const name = nameMatch ? nameMatch[1].trim() : code;
-            
-            // 提取標籤
-            const tagsMatch = content.match(/\[TAGS\]\s*[:：]\s*(.+)/i);
-            const tags = tagsMatch ? tagsMatch[1].split(',').map(t => t.trim()).filter(t => t) : [];
-            
+            const codeMatch = content.match(/^\s*\[([A-Za-z0-9_]+)\]\s*/m);
+            const code = codeMatch ? codeMatch[1] : filename.replace(/\.(txt|ahk)$/, '');
             const extractField = (fieldName) => {
-                const regex = new RegExp(`^\\s*\\[${fieldName}\\]\\s*[:：]\\s*(.*?)(?=\\r?\\n\\s*\\[|\\r?\\n\\s*[A-Z_]+\\s*[:：]|$)`, 'ms');
+                const regex = new RegExp(`^\\s*${fieldName}\\s*[:：]\\s*(.*?)(?=\\r?\\n\\s*[A-Z_]+\\s*[:：]|\\r?\\n\\s*\\[|\\Z)`, 'ms');
                 const match = content.match(regex);
                 return match ? match[1].trim() : '';
             };
             return {
-                code, name, tags,
+                code, name: extractField('NAME') || code,
                 description: extractField('DESCRIPTION') || extractField('EFFECT') || extractField('CORE_CONCEPT'),
                 weight: parseFloat(extractField('WEIGHT')) || 0.5,
                 blockedBy: extractField('BLOCKED_BY') || extractField('BLOCKED_ACTIONS'),
                 alternatives: extractField('ALTERNATIVES'),
-                duration: extractField('DURATION_TTL') || extractField('DURATION'), 
-                rawContent: content
+                duration: extractField('DURATION_TTL') || extractField('DURATION'), rawContent: content
             };
         },
-        
-        async loadIndex() {
-            const indexFileId = await DriveAPI.findId(this.INDEX_FILE_NAME, state.driveIds.root, false);
-            if (!indexFileId) return null;
-            const content = await DriveAPI.getFileContent(indexFileId);
-            return JSON.parse(content);
-        },
-        
-        buildStateFromIndex(indexData) {
-            state.moduleData = {};
-            if (!indexData.categories) return;
-            for (const [category, modules] of Object.entries(indexData.categories)) {
-                state.moduleData[category] = modules.map(mod => ({
-                    code: mod.id,
-                    name: mod.name,
-                    fileId: mod.fileId,
-                    category: category,
-                    tags: mod.tags || [],
-                    rawContent: null
-                }));
-            }
-        },
-        
-        async buildAndSaveIndex() {
-            const configId = await DriveAPI.findId(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, false);
-            if (configId) {
-                const content = await DriveAPI.getFileContent(configId);
-                state.config = JSON.parse(content);
-            }
-
-            const indexData = {
-                meta: {
-                    version: "1.0",
-                    last_updated: new Date().toISOString(),
-                    total_modules: 0,
-                    scanned_categories: 0
-                },
-                categories: {}
-            };
-            
-            let totalModules = 0;
-            let scannedCategories = 0;
-            
-            for (const cat of state.config.categories) {
-                let currentParentId = state.driveIds.root;
-                
-                for (const folderName of cat.path) {
-                    let folderId = await DriveAPI.findId(folderName, currentParentId, true);
-                    if (!folderId) {
-                        console.log(`[Index] 自動建立缺失資料夾: ${folderName}`);
-                        const res = await DriveAPI.createFolder(folderName, currentParentId);
-                        folderId = res.id;
-                    }
-                    currentParentId = folderId;
-                }
-                
-                scannedCategories++;
-                const files = await DriveAPI.listFiles(currentParentId);
-                indexData.categories[cat.key] = [];
-                
-                for (const file of files) {
-                    const lowerName = file.name.toLowerCase();
-                    if (lowerName.endsWith('.txt') && lowerName !== 'readme.txt') {
-                        try {
-                            const content = await DriveAPI.getFileContent(file.id);
-                            const parsed = this.parseModule(content, file.name);
-                            
-                            if (parsed.code) {
-                                indexData.categories[cat.key].push({
-                                    id: parsed.code,
-                                    name: parsed.name,
-                                    fileId: file.id,
-                                    tags: parsed.tags
-                                });
-                                totalModules++;
-                            } else {
-                                console.warn(`[Index] 檔案 ${file.name} 解析失敗，未找到 [MOD_ID]`);
-                            }
-                        } catch (e) {
-                            console.error(`[Index] 讀取檔案 ${file.name} 失敗`, e);
-                        }
-                    }
-                }
-            }
-            
-            indexData.meta.total_modules = totalModules;
-            indexData.meta.scanned_categories = scannedCategories;
-            
-            const jsonStr = JSON.stringify(indexData, null, 2);
-            const existingIndexId = await DriveAPI.findId(this.INDEX_FILE_NAME, state.driveIds.root, false);
-            if (existingIndexId) {
-                await DriveAPI.updateFile(existingIndexId, jsonStr);
-            } else {
-                await DriveAPI.createFile(this.INDEX_FILE_NAME, state.driveIds.root, jsonStr);
-            }
-            
-            console.log(`[Index] 重建完成！掃描了 ${scannedCategories} 個分類，共索引 ${totalModules} 個模組。`);
-            return indexData;
-        },
-        
-        async loadAll(useIndex = true) {
+        async loadAll() {
             if (!state.config || !state.driveIds.root) return;
-            
-            if (useIndex) {
-                const indexData = await this.loadIndex();
-                if (indexData) {
-                    this.buildStateFromIndex(indexData);
-                    return;
-                }
-            }
-            
             state.moduleData = {};
             for (const cat of state.config.categories) {
                 let currentParentId = state.driveIds.root;
@@ -502,8 +371,7 @@
                 const files = await DriveAPI.listFiles(currentParentId);
                 state.moduleData[cat.key] = [];
                 for (const file of files) {
-                    const lowerName = file.name.toLowerCase();
-                    if (lowerName.endsWith('.txt') && lowerName !== 'readme.txt') {
+                    if (file.name.endsWith('.txt') && file.name !== 'README.txt') {
                         try {
                             const content = await DriveAPI.getFileContent(file.id);
                             const parsed = this.parseModule(content, file.name);
@@ -517,49 +385,7 @@
         }
     };
 
-    // 標籤管理系統函數
-    async function updateModuleTags(fileId, newTags) {
-        let content = await DriveAPI.getFileContent(fileId);
-        content = content.replace(/\[TAGS\]\s*[:：]\s*.+/i, '');
-        if (newTags.length > 0) {
-            content += `\n[TAGS]: ${newTags.join(', ')}`;
-        }
-        await DriveAPI.updateFile(fileId, content);
-        
-        // 更新 state
-        for (const catKey in state.moduleData) {
-            const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
-            if (mod) {
-                mod.tags = newTags;
-                break;
-            }
-        }
-    }
-
-    async function removeTagFromModule(fileId, tagToRemove) {
-        let content = await DriveAPI.getFileContent(fileId);
-        const tagsMatch = content.match(/\[TAGS\]\s*[:：]\s*(.+)/i);
-        let tags = [];
-        if (tagsMatch) {
-            tags = tagsMatch[1].split(',').map(t => t.trim()).filter(t => t && t !== tagToRemove);
-            content = content.replace(/\[TAGS\]\s*[:：]\s*.+/i, '');
-        }
-        
-        if (tags.length > 0) {
-            content += `\n[TAGS]: ${tags.join(', ')}`;
-        }
-        
-        await DriveAPI.updateFile(fileId, content);
-        
-        for (const catKey in state.moduleData) {
-            const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
-            if (mod) {
-                mod.tags = tags;
-                break;
-            }
-        }
-    }
-
+    // --- Environment Setup ---
     async function initializeEnvironment() {
         const mask = document.getElementById('mask-status');
         mask.innerText = 'INITIALIZING_STRUCTURE...';
@@ -579,16 +405,17 @@
                         }
                     }
                 } else if (typeof value === 'object' && value !== null) {
-                    await createStructure(value, currentId);
+                    await createStructure(value, currentParentId);
                 }
             }
         };
         await createStructure(state.config.structure, state.driveIds.root);
         state.isInitialized = true;
-        await ModuleLoader.loadAll(true);
+        await ModuleLoader.loadAll();
         renderCurrentView();
     }
 
+    // --- UI Renderers ---
     function renderCurrentView() {
         const container = document.getElementById('view-container');
         container.innerHTML = '';
@@ -606,7 +433,6 @@
             case 'system': renderSystemView(container); break;
             case 'books': renderBooksView(container); break;
             case 'modules': renderModulesView(container); break;
-            case 'tags': renderTagsView(container); break;
             case 'outline': renderOutlineView(container); break;
             case 'triggers': renderTriggersView(container); break;
         }
@@ -627,12 +453,7 @@
                     <div class="flex justify-between items-center"><span class="font-data-md text-sm">Total Books:</span><span class="font-data-md text-sm text-primary-fixed-dim">${state.books.length}</span></div>
                 </div>
                 <button id="init-btn" class="w-full bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow"><span class="material-symbols-outlined">rocket_launch</span> 一鍵初始化專案環境</button>
-                <div class="grid grid-cols-2 gap-2">
-                    <button id="load-fast-btn" class="bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow"><span class="material-symbols-outlined">bolt</span> ⚡ 快速載入 (讀取索引)</button>
-                    <button id="rebuild-index-btn" class="bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2 hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined">build</span> 🛠️ 重建索引 (全量掃描)</button>
-                </div>
-                <button id="edit-config-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2 hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined">settings</span> ⚙️ 編輯組態 (Config Manager)</button>
-                <button id="reload-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant">🔄 重新載入模組庫</button>
+                <button id="reload-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant"> 重新載入模組庫</button>
             </div>
         `;
         document.getElementById('init-btn').onclick = async () => {
@@ -641,155 +462,7 @@
             await initializeEnvironment();
             document.getElementById('secure-mask').classList.add('hidden-mask');
         };
-        document.getElementById('load-fast-btn').onclick = async () => {
-            document.getElementById('mask-status').innerText = 'LOADING_INDEX...';
-            document.getElementById('secure-mask').classList.remove('hidden-mask');
-            await ModuleLoader.loadAll(true);
-            document.getElementById('secure-mask').classList.add('hidden-mask');
-            renderCurrentView();
-            alert('模組已透過索引快速載入！');
-        };
-        document.getElementById('rebuild-index-btn').onclick = async () => {
-            if (!confirm('這將掃描所有模組資料夾並重建索引，可能需要一些時間。確定要執行嗎？')) return;
-            document.getElementById('mask-status').innerText = 'BUILDING_INDEX...';
-            document.getElementById('secure-mask').classList.remove('hidden-mask');
-            
-            const result = await ModuleLoader.buildAndSaveIndex();
-            await ModuleLoader.loadAll(true);
-            
-            document.getElementById('secure-mask').classList.add('hidden-mask');
-            renderCurrentView();
-            alert(`索引已重建！\n掃描分類: ${result.meta.scanned_categories}\n索引模組: ${result.meta.total_modules}`);
-        };
-        document.getElementById('edit-config-btn').onclick = () => renderConfigManager();
-        document.getElementById('reload-btn').onclick = async () => { 
-            document.getElementById('mask-status').innerText = 'RELOADING...';
-            document.getElementById('secure-mask').classList.remove('hidden-mask');
-            await ModuleLoader.loadAll(false);
-            document.getElementById('secure-mask').classList.add('hidden-mask');
-            renderCurrentView();
-            alert('模組庫已重新載入！');
-        };
-    }
-
-    function renderConfigManager() {
-        const modal = document.getElementById('modal-container');
-        modal.classList.remove('hidden');
-        
-        let categoriesHtml = state.config.categories.map((cat, index) => `
-            <div class="flex gap-2 items-center bg-surface-container-high p-2 rounded-sm border border-outline-variant">
-                <input type="text" value="${cat.key}" class="cat-key w-24 bg-surface border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs" data-idx="${index}" placeholder="Key">
-                <input type="text" value="${cat.label}" class="cat-label flex-1 bg-surface border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs" data-idx="${index}" placeholder="Label">
-                <input type="text" value="${cat.path.join(', ')}" class="cat-path flex-[2] bg-surface border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs" data-idx="${index}" placeholder="Path (comma separated)">
-                <button class="del-cat-btn text-error hover:bg-error-container/20 p-1 rounded" data-idx="${index}"><span class="material-symbols-outlined text-[18px]">delete</span></button>
-            </div>
-        `).join('');
-
-        let promptsHtml = Object.entries(state.config.prompts || {}).map(([key, value]) => `
-            <div class="space-y-1">
-                <label class="font-label-caps text-[10px] text-on-surface-variant">${key}</label>
-                <textarea class="prompt-val w-full bg-surface border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs min-h-[60px]" data-key="${key}">${value}</textarea>
-            </div>
-        `).join('');
-
-        modal.innerHTML = `
-            <div class="modal-overlay">
-                <div class="bg-surface border border-outline-variant rounded-sm w-full max-w-4xl h-[90vh] flex flex-col">
-                    <div class="p-4 border-b border-outline-variant flex justify-between items-center">
-                        <div class="font-label-caps text-xs text-primary-fixed-dim">組態管理器 (Config Manager)</div>
-                        <button id="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button>
-                    </div>
-                    <div class="flex-1 overflow-y-auto p-4 space-y-6">
-                        <div class="space-y-2">
-                            <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">基本資訊</h3>
-                            <div class="flex gap-4">
-                                <div class="flex-1 space-y-1">
-                                    <label class="font-label-caps text-[10px] text-on-surface-variant">版本號</label>
-                                    <input type="text" id="cfg-version" value="${state.config.version}" class="w-full bg-surface border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs">
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="space-y-2">
-                            <div class="flex justify-between items-center">
-                                <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">模組分類管理</h3>
-                                <button id="add-cat-btn" class="bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm font-label-caps text-[10px] flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">add</span> 新增分類</button>
-                            </div>
-                            <div id="categories-list" class="space-y-2">
-                                ${categoriesHtml}
-                            </div>
-                        </div>
-
-                        <div class="space-y-2">
-                            <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">系統規則 (Prompts)</h3>
-                            <div class="space-y-3">
-                                ${promptsHtml}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="p-4 border-t border-outline-variant flex gap-2">
-                        <button id="save-config-btn" class="flex-1 bg-primary-container text-on-primary-fixed py-2 rounded-sm font-label-caps text-xs flex items-center justify-center gap-1"><span class="material-symbols-outlined text-[16px]">save</span> 儲存並同步結構</button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
-        
-        document.getElementById('add-cat-btn').onclick = () => {
-            state.config.categories.push({ key: 'New_Key', label: '新分類', path: ['00_GLOBAL_CORE', '30_MODULES', '99_NEW'] });
-            renderConfigManager();
-        };
-
-        document.querySelectorAll('.del-cat-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                const idx = parseInt(e.currentTarget.dataset.idx);
-                state.config.categories.splice(idx, 1);
-                renderConfigManager();
-            };
-        });
-
-        document.getElementById('save-config-btn').onclick = async () => {
-            state.config.version = document.getElementById('cfg-version').value;
-            
-            document.querySelectorAll('.cat-key').forEach((inp, idx) => {
-                if (state.config.categories[idx]) {
-                    state.config.categories[idx].key = inp.value.trim();
-                    state.config.categories[idx].label = document.querySelectorAll('.cat-label')[idx].value.trim();
-                    const pathStr = document.querySelectorAll('.cat-path')[idx].value;
-                    state.config.categories[idx].path = pathStr.split(',').map(p => p.trim()).filter(p => p);
-                }
-            });
-
-            document.querySelectorAll('.prompt-val').forEach(textarea => {
-                const key = textarea.dataset.key;
-                state.config.prompts[key] = textarea.value;
-            });
-
-            document.getElementById('mask-status').innerText = 'SAVING CONFIG...';
-            document.getElementById('secure-mask').classList.remove('hidden-mask');
-            modal.classList.add('hidden');
-            
-            await DriveAPI.updateFile(state.driveIds.config, JSON.stringify(state.config, null, 2));
-            
-            document.getElementById('mask-status').innerText = 'SYNCING STRUCTURE...';
-            for (const cat of state.config.categories) {
-                let currentId = state.driveIds.root;
-                for (const folderName of cat.path) {
-                    let folderId = await DriveAPI.findId(folderName, currentId, true);
-                    if (!folderId) {
-                        const res = await DriveAPI.createFolder(folderName, currentId);
-                        folderId = res.id;
-                    }
-                    currentId = folderId;
-                }
-            }
-
-            await ModuleLoader.loadAll(true);
-            document.getElementById('secure-mask').classList.add('hidden-mask');
-            renderCurrentView();
-            alert('組態已儲存，結構已同步，模組庫已更新！');
-        };
+        document.getElementById('reload-btn').onclick = async () => { await ModuleLoader.loadAll(); renderCurrentView(); };
     }
 
     function renderUploadConfigView(container) {
@@ -813,8 +486,7 @@
                     state.config = JSON.parse(event.target.result);
                     document.getElementById('mask-status').innerText = 'UPLOADING_CONFIG...';
                     document.getElementById('secure-mask').classList.remove('hidden-mask');
-                    const res = await DriveAPI.createFile(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, JSON.stringify(state.config, null, 2));
-                    state.driveIds.config = res.id;
+                    await DriveAPI.createFile(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, JSON.stringify(state.config, null, 2));
                     await initializeEnvironment();
                     document.getElementById('secure-mask').classList.add('hidden-mask');
                 } catch (err) { alert('配置檔解析失敗：' + err.message); }
@@ -823,6 +495,7 @@
         };
     }
 
+    // --- Books View ---
     function renderBooksView(container) {
         const book = getCurrentBook();
         const tabs = [
@@ -872,28 +545,6 @@
             });
             renderBookTabContent();
         }
-    }
-
-    function syncActorSceneInputs() {
-        const content = document.getElementById('book-tab-content');
-        if (!content) return;
-        const isActor = state.currentBookTab === 'actors';
-        const book = getCurrentBook();
-        if (!book) return;
-        const list = isActor ? book.actors : book.scenes;
-
-        content.querySelectorAll('.item-name-input').forEach(inp => {
-            const idx = parseInt(inp.dataset.idx);
-            if (list[idx]) list[idx].name = inp.value;
-        });
-        content.querySelectorAll('.item-desc-input').forEach(inp => {
-            const idx = parseInt(inp.dataset.idx);
-            if (list[idx]) list[idx].description = inp.value;
-        });
-        content.querySelectorAll('.item-tags-input').forEach(inp => {
-            const idx = parseInt(inp.dataset.idx);
-            if (list[idx]) list[idx].tags = inp.value;
-        });
     }
 
     function renderBookTabContent() {
@@ -948,6 +599,7 @@
             const isActor = state.currentBookTab === 'actors';
             const list = isActor ? book.actors : book.scenes;
             
+            // 收集所有可用模組
             let allAvailableModules = [];
             for (const key in state.moduleData) {
                 state.moduleData[key].forEach(m => {
@@ -963,6 +615,7 @@
                     </div>
                     <div class="space-y-4">
                         ${list.length === 0 ? '<div class="text-xs text-on-surface-variant">尚未設定，請點擊新增。</div>' : list.map((item, idx) => {
+                            // 兼容舊數據：將 oopCode 轉換為 linkedModules 陣列
                             if (!item.linkedModules) {
                                 item.linkedModules = item.oopCode ? [item.oopCode] : [];
                             }
@@ -993,7 +646,7 @@
                                     <div class="flex flex-wrap gap-2 min-h-[30px] p-2 bg-surface rounded-sm border border-outline-variant/50" id="mod-tags-container-${idx}">
                                         ${item.linkedModules.map(modCode => {
                                             const modInfo = allAvailableModules.find(m => m.code === modCode);
-                                            const displayName = modInfo ? modInfo.name : modCode;
+                                            const displayName = modInfo ? `${modInfo.name} [${modCode}]` : modCode;
                                             return `
                                                 <span class="inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-primary-container/10 text-primary-fixed-dim text-xs border border-primary-container/30">
                                                     ${displayName}
@@ -1012,7 +665,7 @@
                             </div>
                         `}).join('')}
                     </div>
-                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-8">💾 儲存${isActor ? '演員' : '場景'}池</button>
+                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-8"> 儲存${isActor ? '演員' : '場景'}池</button>
                 </div>
             `;
 
@@ -1022,23 +675,20 @@
             };
             
             document.getElementById('save-list-btn').onclick = () => {
-                syncActorSceneInputs();
+                content.querySelectorAll('.item-name-input').forEach(inp => list[inp.dataset.idx].name = inp.value);
+                content.querySelectorAll('.item-desc-input').forEach(inp => list[inp.dataset.idx].description = inp.value);
+                content.querySelectorAll('.item-tags-input').forEach(inp => list[inp.dataset.idx].tags = inp.value);
                 saveBooksData();
                 alert('已儲存！');
             };
 
             content.querySelectorAll('.del-item-btn').forEach(btn => {
-                btn.onclick = () => { 
-                    syncActorSceneInputs();
-                    list.splice(btn.dataset.idx, 1); 
-                    renderBookTabContent(); 
-                };
+                btn.onclick = () => { list.splice(btn.dataset.idx, 1); renderBookTabContent(); };
             });
 
             content.querySelectorAll('.remove-mod-btn').forEach(btn => {
                 btn.onclick = (e) => {
-                    syncActorSceneInputs(); 
-                    const idx = parseInt(e.target.dataset.idx);
+                    const idx = e.target.dataset.idx;
                     const code = e.target.dataset.code;
                     list[idx].linkedModules = list[idx].linkedModules.filter(c => c !== code);
                     renderBookTabContent();
@@ -1046,11 +696,11 @@
             });
 
             content.querySelectorAll('.add-mod-btn').forEach(btn => {
-                btn.onclick = (e) => openAddModuleModal(parseInt(e.target.dataset.idx), list, allAvailableModules);
+                btn.onclick = (e) => openAddModuleModal(e.target.dataset.idx, list, allAvailableModules);
             });
 
             content.querySelectorAll('.autolink-btn').forEach(btn => {
-                btn.onclick = (e) => openAutolinkModal(parseInt(e.target.dataset.idx), list, allAvailableModules);
+                btn.onclick = (e) => openAutolinkModal(e.target.dataset.idx, list, allAvailableModules);
             });
         }
         else if (state.currentBookTab === 'chapters') {
@@ -1083,7 +733,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <button id="save-chaps-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-8">💾 儲存章節列表</button>
+                    <button id="save-chaps-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-8"> 儲存章節列表</button>
                 </div>
             `;
             document.getElementById('add-chap-btn').onclick = () => {
@@ -1104,6 +754,7 @@
         }
     }
 
+    // --- Modal Functions for OOP Association ---
     function openAddModuleModal(idx, list, allAvailableModules) {
         const modal = document.getElementById('modal-container');
         modal.innerHTML = `
@@ -1129,10 +780,8 @@
         `;
         modal.classList.remove('hidden');
         document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
-        
         modal.querySelectorAll('.add-single-mod-btn').forEach(btn => {
             btn.onclick = () => {
-                syncActorSceneInputs(); 
                 const code = btn.dataset.code;
                 if (!list[idx].linkedModules.includes(code)) {
                     list[idx].linkedModules.push(code);
@@ -1182,13 +831,11 @@
             alert('提示詞已複製！請去 LLM 對話框貼上並取得結果。');
         };
         document.getElementById('close-autolink-btn').onclick = () => modal.classList.add('hidden');
-        
         document.getElementById('apply-autolink-btn').onclick = () => {
             const resultStr = document.getElementById('autolink-result-input').value;
             try {
                 const parsedCodes = JSON.parse(resultStr);
                 if (Array.isArray(parsedCodes)) {
-                    syncActorSceneInputs(); 
                     list[idx].linkedModules = parsedCodes;
                     modal.classList.add('hidden');
                     renderBookTabContent();
@@ -1202,296 +849,41 @@
         };
     }
 
+    // --- Modules View ---
     function renderModulesView(container) {
-        if (!state.moduleCategoriesInitialized) {
-            state.config.categories.forEach(cat => state.moduleVisibleCategories.add(cat.key));
-            state.moduleCategoriesInitialized = true;
-        }
-        
-        let html = `
-            <div class="p-gutter space-y-4 pb-40">
-                <div class="glass-panel p-4 rounded-sm space-y-3">
-                    <div class="space-y-1">
-                        <label class="font-label-caps text-[10px] text-on-surface-variant">🔍 搜尋模組</label>
-                        <input type="text" id="module-search" value="${state.moduleSearchQuery}" 
-                               class="w-full bg-surface-container-high border border-outline text-on-surface px-3 py-2 rounded-sm font-data-md text-sm"
-                               placeholder="輸入模組名稱或 ID...">
-                    </div>
-                    
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <label class="font-label-caps text-[10px] text-on-surface-variant">📂 顯示類別 (可多選)</label>
-                            <div class="flex gap-2">
-                                <button id="select-all-cats" class="text-primary-fixed-dim text-[10px] hover:underline">全選</button>
-                                <button id="deselect-all-cats" class="text-on-surface-variant text-[10px] hover:underline">全不選</button>
-                            </div>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            ${state.config.categories.map(cat => `
-                                <label class="flex items-center gap-1 bg-surface-container-high px-2 py-1 rounded-sm cursor-pointer hover:bg-surface-container-highest transition-colors">
-                                    <input type="checkbox" class="cat-checkbox rounded text-primary-container" data-key="${cat.key}" 
-                                           ${state.moduleVisibleCategories.has(cat.key) ? 'checked' : ''}>
-                                    <span class="font-data-md text-[10px]">${cat.label}</span>
-                                </label>
-                            `).join('')}
-                        </div>
-                    </div>
-                    
-                    <!-- 批量操作區域 -->
-                    <div class="border-t border-outline-variant pt-3">
-                        <div class="flex justify-between items-center mb-2">
-                            <label class="font-label-caps text-[10px] text-on-surface-variant">📦 批量操作 (已選: <span id="selected-count">${state.selectedModules.size}</span> 個)</label>
-                            <div class="flex gap-2">
-                                <button id="batch-add-tag-btn" class="bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm text-[10px] ${state.selectedModules.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}">批量添加標籤</button>
-                                <button id="batch-remove-tag-btn" class="bg-error-container/20 text-error px-2 py-1 rounded-sm text-[10px] ${state.selectedModules.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}">批量移除標籤</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-        `;
-        
+        let html = `<div class="p-gutter space-y-4 pb-40">`;
         for (const cat of state.config.categories) {
-            if (!state.moduleVisibleCategories.has(cat.key)) continue;
-            
             const mods = state.moduleData[cat.key] || [];
-            
-            const filteredMods = mods.filter(m => {
-                if (!state.moduleSearchQuery) return true;
-                const query = state.moduleSearchQuery.toLowerCase();
-                return m.name.toLowerCase().includes(query) || 
-                       m.code.toLowerCase().includes(query);
-            });
-            
-            const isCollapsed = state.moduleCollapsedCategories.has(cat.key);
-            
             html += `
                 <div class="space-y-2">
-                    <div class="flex items-center justify-between">
-                        <h3 class="font-label-caps text-[10px] text-on-surface-variant border-l-2 border-primary-container pl-2">
-                            ${cat.label} (${filteredMods.length}/${mods.length})
-                        </h3>
-                        <button class="collapse-btn text-on-surface-variant hover:text-primary-fixed-dim p-1" data-key="${cat.key}">
-                            <span class="material-symbols-outlined text-[18px]">${isCollapsed ? 'expand_more' : 'expand_less'}</span>
-                        </button>
+                    <h3 class="font-label-caps text-[10px] text-on-surface-variant border-l-2 border-primary-container pl-2">${cat.label} (${mods.length})</h3>
+                    <div class="grid grid-cols-1 gap-2">
+                        ${mods.length === 0 ? '<div class="text-xs text-on-surface-variant glass-panel p-2 rounded">無模組</div>' : 
+                        mods.map(m => `
+                            <div class="glass-panel p-3 rounded-sm flex justify-between items-center cursor-pointer hover:bg-surface-container-highest transition-colors module-item" data-id="${m.code}" data-cat="${cat.key}">
+                                <div><div class="font-data-md text-sm text-on-surface">${m.name}</div><div class="font-label-caps text-[8px] text-outline uppercase">${m.code}</div></div>
+                                <span class="material-symbols-outlined text-outline text-[18px]">edit</span>
+                            </div>
+                        `).join('')}
                     </div>
-                    ${!isCollapsed ? `
-                        <div class="grid grid-cols-1 gap-2">
-                            ${filteredMods.length === 0 ? '<div class="text-xs text-on-surface-variant glass-panel p-2 rounded">無符合條件的模組</div>' : 
-                            filteredMods.map(m => `
-                                <div class="glass-panel p-3 rounded-sm flex justify-between items-center hover:bg-surface-container-highest transition-colors">
-                                    <div class="flex items-center gap-3 flex-1">
-                                        <input type="checkbox" class="module-checkbox rounded text-primary-container" data-fileid="${m.fileId}" 
-                                               ${state.selectedModules.has(m.fileId) ? 'checked' : ''}>
-                                        <div class="flex-1">
-                                            <div class="font-data-md text-sm text-on-surface">${m.name}</div>
-                                            <div class="font-label-caps text-[8px] text-outline uppercase">${m.code}</div>
-                                            ${m.tags && m.tags.length > 0 ? `
-                                                <div class="flex flex-wrap gap-1 mt-1">
-                                                    ${m.tags.map(tag => `<span class="text-[8px] px-1 bg-primary-container/20 text-primary-fixed-dim rounded">${tag}</span>`).join('')}
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                    </div>
-                                    <button class="edit-module-btn text-on-surface-variant hover:text-primary-fixed-dim p-1" data-fileid="${m.fileId}" data-catkey="${cat.key}">
-                                        <span class="material-symbols-outlined text-[18px]">edit</span>
-                                    </button>
-                                </div>
-                            `).join('')}
-                        </div>
-                    ` : ''}
                 </div>
             `;
         }
-        
         html += `</div>`;
         container.innerHTML = html;
-        
-        const searchInput = document.getElementById('module-search');
-        if (searchInput) {
-            searchInput.oninput = (e) => {
-                state.moduleSearchQuery = e.target.value;
-                const cursorPos = e.target.selectionStart;
-                renderModulesView(container);
-                const newInput = document.getElementById('module-search');
-                if (newInput) {
-                    newInput.focus();
-                    newInput.setSelectionRange(cursorPos, cursorPos);
-                }
-            };
-        }
-        
-        document.querySelectorAll('.cat-checkbox').forEach(cb => {
-            cb.onchange = (e) => {
-                const key = e.target.dataset.key;
-                if (e.target.checked) {
-                    state.moduleVisibleCategories.add(key);
-                } else {
-                    state.moduleVisibleCategories.delete(key);
-                }
-                renderModulesView(container);
-                const searchInput = document.getElementById('module-search');
-                if (searchInput) {
-                    searchInput.focus();
-                }
-            };
-        });
-        
-        document.getElementById('select-all-cats').onclick = () => {
-            state.config.categories.forEach(cat => state.moduleVisibleCategories.add(cat.key));
-            renderModulesView(container);
-            const searchInput = document.getElementById('module-search');
-            if (searchInput) {
-                searchInput.focus();
-            }
-        };
-        
-        document.getElementById('deselect-all-cats').onclick = () => {
-            state.moduleVisibleCategories.clear();
-            renderModulesView(container);
-            const searchInput = document.getElementById('module-search');
-            if (searchInput) {
-                searchInput.focus();
-            }
-        };
-        
-        document.querySelectorAll('.collapse-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                const key = e.currentTarget.dataset.key;
-                if (state.moduleCollapsedCategories.has(key)) {
-                    state.moduleCollapsedCategories.delete(key);
-                } else {
-                    state.moduleCollapsedCategories.add(key);
-                }
-                renderModulesView(container);
-                const searchInput = document.getElementById('module-search');
-                if (searchInput) {
-                    searchInput.focus();
-                }
-            };
-        });
-        
-        // 模組勾選事件
-        document.querySelectorAll('.module-checkbox').forEach(cb => {
-            cb.onchange = (e) => {
-                const fileId = e.target.dataset.fileid;
-                if (e.target.checked) {
-                    state.selectedModules.add(fileId);
-                } else {
-                    state.selectedModules.delete(fileId);
-                }
-                document.getElementById('selected-count').innerText = state.selectedModules.size;
-                document.getElementById('batch-add-tag-btn').classList.toggle('opacity-50', state.selectedModules.size === 0);
-                document.getElementById('batch-add-tag-btn').classList.toggle('cursor-not-allowed', state.selectedModules.size === 0);
-                document.getElementById('batch-remove-tag-btn').classList.toggle('opacity-50', state.selectedModules.size === 0);
-                document.getElementById('batch-remove-tag-btn').classList.toggle('cursor-not-allowed', state.selectedModules.size === 0);
-            };
-        });
-        
-        // 編輯模組按鈕
-        document.querySelectorAll('.edit-module-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                const fileId = e.currentTarget.dataset.fileid;
-                const catKey = e.currentTarget.dataset.catkey;
-                openModuleEditor(fileId, catKey);
-            };
-        });
-        
-        // 批量操作按鈕
-        document.getElementById('batch-add-tag-btn').onclick = () => {
-            if (state.selectedModules.size === 0) return;
-            const tag = prompt(`請輸入要添加的標籤 (將添加到 ${state.selectedModules.size} 個模組):`);
-            if (tag && tag.trim()) {
-                batchAddTag(tag.trim());
-            }
-        };
-        
-        document.getElementById('batch-remove-tag-btn').onclick = () => {
-            if (state.selectedModules.size === 0) return;
-            const tag = prompt(`請輸入要移除的標籤 (將從 ${state.selectedModules.size} 個模組移除):`);
-            if (tag && tag.trim()) {
-                batchRemoveTag(tag.trim());
-            }
-        };
+        container.querySelectorAll('.module-item').forEach(el => { el.onclick = () => openModuleEditor(el.dataset.id, el.dataset.cat); });
     }
 
-    async function batchAddTag(tag) {
-        document.getElementById('mask-status').innerText = 'BATCH ADDING TAG...';
-        document.getElementById('secure-mask').classList.remove('hidden-mask');
-        
-        for (const fileId of state.selectedModules) {
-            let content = await DriveAPI.getFileContent(fileId);
-            const tagsMatch = content.match(/\[TAGS\]\s*[:：]\s*(.+)/i);
-            let tags = [];
-            if (tagsMatch) {
-                tags = tagsMatch[1].split(',').map(t => t.trim()).filter(t => t);
-                content = content.replace(/\[TAGS\]\s*[:：]\s*.+/i, '');
-            }
-            
-            if (!tags.includes(tag)) {
-                tags.push(tag);
-            }
-            
-            if (tags.length > 0) {
-                content += `\n[TAGS]: ${tags.join(', ')}`;
-            }
-            
-            await DriveAPI.updateFile(fileId, content);
-            
-            // 更新 state
-            for (const catKey in state.moduleData) {
-                const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
-                if (mod) {
-                    mod.tags = tags;
-                    break;
-                }
-            }
-        }
-        
-        document.getElementById('secure-mask').classList.add('hidden-mask');
-        renderCurrentView();
-        alert(`已為 ${state.selectedModules.size} 個模組添加標籤 "${tag}"`);
-    }
-
-    async function batchRemoveTag(tag) {
-        document.getElementById('mask-status').innerText = 'BATCH REMOVING TAG...';
-        document.getElementById('secure-mask').classList.remove('hidden-mask');
-        
-        for (const fileId of state.selectedModules) {
-            await removeTagFromModule(fileId, tag);
-        }
-        
-        document.getElementById('secure-mask').classList.add('hidden-mask');
-        renderCurrentView();
-        alert(`已從 ${state.selectedModules.size} 個模組移除標籤 "${tag}"`);
-    }
-
-    function openModuleEditor(fileId, catKey) {
-        const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
+    function openModuleEditor(code, catKey) {
+        const mod = state.moduleData[catKey].find(m => m.code === code);
         if (!mod) return;
-        
-        const loadAndEdit = async () => {
-            if (!mod.rawContent) {
-                document.getElementById('mask-status').innerText = 'FETCHING_MODULE...';
-                document.getElementById('secure-mask').classList.remove('hidden-mask');
-                mod.rawContent = await DriveAPI.getFileContent(mod.fileId);
-                document.getElementById('secure-mask').classList.add('hidden-mask');
-            }
-            renderModuleEditorModal(mod, catKey);
-        };
-        loadAndEdit();
-    }
-
-    function renderModuleEditorModal(mod, catKey) {
         const modal = document.getElementById('modal-container');
         modal.classList.remove('hidden');
         modal.innerHTML = `
             <div class="modal-overlay">
                 <div class="bg-surface border border-outline-variant rounded-sm w-full max-w-2xl h-[80vh] flex flex-col">
                     <div class="p-4 border-b border-outline-variant flex justify-between items-center">
-                        <div>
-                            <div class="font-label-caps text-xs text-primary-fixed-dim">編輯模組: ${mod.name}</div>
-                            <div class="font-data-md text-[10px] text-on-surface-variant">ID: ${mod.code} | File ID: ${mod.fileId}</div>
-                        </div>
+                        <div><div class="font-label-caps text-xs text-primary-fixed-dim">編輯模組: ${mod.code}</div><div class="font-data-md text-[10px] text-on-surface-variant">File ID: ${mod.fileId}</div></div>
                         <button id="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button>
                     </div>
                     <textarea id="editor-content" class="flex-1 p-4 bg-black/20 text-on-surface font-data-md text-sm resize-none focus:ring-0 border-none">${mod.rawContent}</textarea>
@@ -1510,175 +902,21 @@
             modal.classList.add('hidden');
             alert('模組已覆寫！');
         };
-        
         document.getElementById('save-as').onclick = async () => {
             const newName = prompt('請輸入新模組名稱 (不含 .txt):'); if (!newName) return;
             const content = document.getElementById('editor-content').value;
             const cat = state.config.categories.find(c => c.key === catKey);
-            
-            if (!cat) {
-                alert('錯誤：找不到對應的分類配置！');
-                return;
-            }
-            
             let currentParentId = state.driveIds.root;
-            for (const folderName of cat.path) {
-                let folderId = await DriveAPI.findId(folderName, currentParentId, true);
-                if (!folderId) {
-                    const res = await DriveAPI.createFolder(folderName, currentParentId);
-                    folderId = res.id;
-                }
-                currentParentId = folderId;
-            }
-            
+            for (const folderName of cat.path) currentParentId = await DriveAPI.findId(folderName, currentParentId, true);
             await DriveAPI.createFile(`${newName}.txt`, currentParentId, content);
-            await ModuleLoader.buildAndSaveIndex();
-            await ModuleLoader.loadAll(true);
+            await ModuleLoader.loadAll();
             modal.classList.add('hidden');
             renderCurrentView();
-            alert('新模組已儲存，索引已更新！');
+            alert('新模組已儲存！');
         };
     }
 
-    // 標籤管理系統頁面
-    function renderTagsView(container) {
-        // 收集所有標籤及其數量
-        const tagMap = {};
-        for (const catKey in state.moduleData) {
-            for (const mod of state.moduleData[catKey]) {
-                if (mod.tags && mod.tags.length > 0) {
-                    for (const tag of mod.tags) {
-                        if (!tagMap[tag]) {
-                            tagMap[tag] = { count: 0, modules: [] };
-                        }
-                        tagMap[tag].count++;
-                        tagMap[tag].modules.push({
-                            code: mod.code,
-                            name: mod.name,
-                            fileId: mod.fileId,
-                            catKey: catKey
-                        });
-                    }
-                }
-            }
-        }
-        
-        const tags = Object.keys(tagMap).sort();
-        
-        let html = `
-            <div class="p-gutter space-y-4 pb-40">
-                <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">標籤管理系統</h2>
-                
-                <!-- 標籤搜尋 -->
-                <div class="glass-panel p-4 rounded-sm">
-                    <div class="space-y-1">
-                        <label class="font-label-caps text-[10px] text-on-surface-variant">🔍 搜尋標籤</label>
-                        <input type="text" id="tag-search" value="${state.tagSearchQuery}" 
-                               class="w-full bg-surface-container-high border border-outline text-on-surface px-3 py-2 rounded-sm font-data-md text-sm"
-                               placeholder="輸入標籤名稱...">
-                    </div>
-                </div>
-                
-                <!-- 標籤雲 -->
-                <div class="glass-panel p-4 rounded-sm">
-                    <h3 class="font-label-caps text-xs text-on-surface-variant mb-2">所有標籤 (${tags.length})</h3>
-                    <div class="flex flex-wrap gap-2">
-                        ${tags.filter(tag => !state.tagSearchQuery || tag.toLowerCase().includes(state.tagSearchQuery.toLowerCase())).map(tag => `
-                            <button class="tag-cloud-btn px-3 py-1 rounded-full bg-surface-container-high text-on-surface text-xs hover:bg-primary-container hover:text-on-primary-fixed transition-colors ${state.tagFilter === tag ? 'active' : ''}" data-tag="${tag}">
-                                ${tag} <span class="opacity-50">(${tagMap[tag].count})</span>
-                            </button>
-                        `).join('')}
-                    </div>
-                </div>
-                
-                <!-- 標籤篩選結果 -->
-                ${state.tagFilter ? `
-                    <div class="glass-panel p-4 rounded-sm">
-                        <div class="flex justify-between items-center mb-2">
-                            <h3 class="font-label-caps text-xs text-on-surface-variant">篩選結果: <span class="text-primary-fixed-dim">${state.tagFilter}</span> (${tagMap[state.tagFilter].modules.length} 個模組)</h3>
-                            <button id="clear-tag-filter" class="text-error text-[10px] hover:underline">清除篩選</button>
-                        </div>
-                        <div class="space-y-2">
-                            ${tagMap[state.tagFilter].modules.map(mod => `
-                                <div class="flex justify-between items-center p-2 bg-surface-container-high rounded-sm">
-                                    <div>
-                                        <div class="text-sm">${mod.name}</div>
-                                        <div class="text-[10px] opacity-50">${mod.code}</div>
-                                    </div>
-                                    <button class="remove-tag-from-module-btn bg-error-container/20 text-error px-2 py-1 rounded-sm text-[10px]" data-fileid="${mod.fileId}" data-tag="${state.tagFilter}">移除此標籤</button>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- 標籤管理 -->
-                <div class="glass-panel p-4 rounded-sm">
-                    <h3 class="font-label-caps text-xs text-on-surface-variant mb-2">標籤操作說明</h3>
-                    <div class="text-xs text-on-surface-variant space-y-1">
-                        <p>• 點擊標籤雲中的標籤可篩選擁有該標籤的模組</p>
-                        <p>• 在 Modules 頁面中，可以為模組添加或移除標籤</p>
-                        <p>• 使用批量操作功能，可以一次性為多個模組添加/移除標籤</p>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        container.innerHTML = html;
-        
-        // 標籤搜尋事件
-        const tagSearchInput = document.getElementById('tag-search');
-        if (tagSearchInput) {
-            tagSearchInput.oninput = (e) => {
-                state.tagSearchQuery = e.target.value;
-                const cursorPos = e.target.selectionStart;
-                renderTagsView(container);
-                const newInput = document.getElementById('tag-search');
-                if (newInput) {
-                    newInput.focus();
-                    newInput.setSelectionRange(cursorPos, cursorPos);
-                }
-            };
-        }
-        
-        // 標籤雲點擊事件
-        container.querySelectorAll('.tag-cloud-btn').forEach(btn => {
-            btn.onclick = () => {
-                const tag = btn.dataset.tag;
-                if (state.tagFilter === tag) {
-                    state.tagFilter = null;
-                } else {
-                    state.tagFilter = tag;
-                }
-                renderTagsView(container);
-            };
-        });
-        
-        // 清除篩選
-        const clearFilterBtn = document.getElementById('clear-tag-filter');
-        if (clearFilterBtn) {
-            clearFilterBtn.onclick = () => {
-                state.tagFilter = null;
-                renderTagsView(container);
-            };
-        }
-        
-        // 移除標籤按鈕
-        container.querySelectorAll('.remove-tag-from-module-btn').forEach(btn => {
-            btn.onclick = async () => {
-                const fileId = btn.dataset.fileid;
-                const tagToRemove = btn.dataset.tag;
-                if (confirm(`確定要從模組中移除標籤 "${tagToRemove}" 嗎？`)) {
-                    document.getElementById('mask-status').innerText = 'REMOVING TAG...';
-                    document.getElementById('secure-mask').classList.remove('hidden-mask');
-                    await removeTagFromModule(fileId, tagToRemove);
-                    document.getElementById('secure-mask').classList.add('hidden-mask');
-                    renderTagsView(container);
-                }
-            };
-        });
-    }
-
+    // --- Outline View ---
     function renderOutlineView(container) {
         const book = getCurrentBook();
         if (!book) {
@@ -1739,18 +977,109 @@
             <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">HOOK承接詞 (Transition Hook)</label><input type="text" id="hook-input" value="${tabData.hook || ''}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm" placeholder="例：然而，他並未察覺暗處的視線..."></div>
             <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">動作/劇情描述</label><textarea id="action-text" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]">${tabData.actionText}</textarea></div>
             <div class="space-y-2"><label class="font-label-caps text-[10px] text-on-surface-variant">出場人物 (Instances)</label>
-                ${chars.map(c => `
-                    <div class="glass-panel p-2 rounded-sm space-y-2">
-                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="char-check rounded text-primary-container" data-code="${c.id}" ${tabData.characters[c.id]?.checked ? 'checked' : ''}><span class="font-data-md text-sm">${c.name} ${c.oopCode ? '['+c.oopCode+']' : ''}</span></label>
-                        <div class="char-settings ${tabData.characters[c.id]?.checked ? '' : 'hidden'} space-y-2 pl-6 border-l border-outline-variant">
-                            ${modTypes.map(mt => {
-                                const mods = state.moduleData[mt.key] || [];
-                                const charSetting = tabData.characters[c.id]?.settings?.[mt.key] || {};
-                                return `<div class="grid grid-cols-3 gap-1 items-center"><span class="font-label-caps text-[8px] text-on-surface-variant">${mt.label}</span><select class="mod-select col-span-2 bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}"><option value="">(無)</option>${mods.map(m => `<option value="${m.code}" ${charSetting.name === m.code ? 'selected' : ''}>${m.name}</option>`).join('')}</select></div><div class="grid grid-cols-2 gap-1"><input type="text" placeholder="Must Execute" class="must-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}" value="${charSetting.must || ''}"><input type="text" placeholder="Forbid" class="forbid-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}" value="${charSetting.forbid || ''}"></div>`;
-                            }).join('')}
+                ${chars.map(c => {
+                    // 初始化角色設定結構
+                    if (!tabData.characters[c.id]) {
+                        tabData.characters[c.id] = { checked: false, moduleRows: [] };
+                    }
+                    const charData = tabData.characters[c.id];
+                    
+                    // 計算創作空間裕度
+                    const moduleCount = charData.moduleRows ? charData.moduleRows.length : 0;
+                    let marginPercent = 100;
+                    let marginClass = 'margin-high';
+                    let marginLabel = '🟢 高度自由';
+                    
+                    if (moduleCount === 1) {
+                        marginPercent = 80;
+                        marginClass = 'margin-high';
+                        marginLabel = '🟢 高度自由';
+                    } else if (moduleCount === 2) {
+                        marginPercent = 60;
+                        marginClass = 'margin-medium';
+                        marginLabel = ' 平衡狀態';
+                    } else if (moduleCount >= 3) {
+                        marginPercent = Math.max(20, 100 - (moduleCount * 15));
+                        marginClass = 'margin-low';
+                        marginLabel = '🔴 嚴格約束';
+                    }
+                    
+                    return `
+                    <div class="glass-panel p-3 rounded-sm border border-outline-variant space-y-3">
+                        <div class="flex justify-between items-center">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" class="char-check rounded text-primary-container" data-code="${c.id}" ${charData.checked ? 'checked' : ''}>
+                                <span class="font-data-md text-sm">${c.name} ${c.oopCode ? '['+c.oopCode+']' : ''}</span>
+                            </label>
+                            <div class="creative-margin-indicator flex items-center gap-2 px-2 py-1 rounded-sm bg-surface-container-high border border-outline-variant">
+                                <span class="font-label-caps text-[8px] text-on-surface-variant">創作空間裕度:</span>
+                                <span class="font-data-md text-xs ${marginClass} font-bold">${marginPercent}%</span>
+                                <span class="text-[10px]">${marginLabel}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="char-settings ${charData.checked ? '' : 'hidden'} space-y-3 pl-4 border-l-2 border-outline-variant">
+                            <!-- 表列式模組設定 -->
+                            <div class="space-y-2">
+                                <div class="flex justify-between items-center">
+                                    <label class="font-label-caps text-[10px] text-primary-fixed-dim">模組設定表列 (優先級覆蓋全局設定)</label>
+                                    <button class="add-module-row-btn bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:bg-primary-container/30 transition-all" data-char="${c.id}">
+                                        <span class="material-symbols-outlined text-[14px]">add</span> 新增模組行
+                                    </button>
+                                </div>
+                                
+                                <div class="module-rows-container space-y-2" data-char="${c.id}">
+                                    ${charData.moduleRows && charData.moduleRows.length > 0 ? charData.moduleRows.map((row, rowIdx) => `
+                                        <div class="module-row bg-surface p-3 rounded-sm border border-outline-variant/50 space-y-2">
+                                            <div class="flex justify-between items-start gap-2">
+                                                <div class="flex-1 grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label class="font-label-caps text-[8px] text-on-surface-variant block mb-1">模組類別</label>
+                                                        <select class="mod-category-select bg-surface-container-high border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs w-full" data-char="${c.id}" data-row="${rowIdx}">
+                                                            <option value="">(選擇類別)</option>
+                                                            ${modTypes.map(mt => `<option value="${mt.key}" ${row.category === mt.key ? 'selected' : ''}>${mt.label}</option>`).join('')}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label class="font-label-caps text-[8px] text-on-surface-variant block mb-1">模組選擇</label>
+                                                        <select class="mod-code-select bg-surface-container-high border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs w-full" data-char="${c.id}" data-row="${rowIdx}">
+                                                            <option value="">(選擇模組)</option>
+                                                            ${row.category ? (state.moduleData[row.category] || []).map(m => `<option value="${m.code}" ${row.code === m.code ? 'selected' : ''}>${m.name}</option>`).join('') : ''}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <button class="remove-module-row-btn text-error hover:bg-error-container/20 p-1 rounded transition-all" data-char="${c.id}" data-row="${rowIdx}" title="刪除此行">
+                                                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                                                </button>
+                                            </div>
+                                            
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label class="font-label-caps text-[8px] text-on-surface-variant block mb-1">MUST EXECUTE (強制執行)</label>
+                                                    <input type="text" class="must-execute-input bg-surface-container-high border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs w-full" placeholder="指定必須生效的模組" data-char="${c.id}" data-row="${rowIdx}" value="${row.must || ''}">
+                                                </div>
+                                                <div>
+                                                    <label class="font-label-caps text-[8px] text-error block mb-1">FORBID (禁止使用)</label>
+                                                    <input type="text" class="forbid-input bg-surface-container-high border border-error-container text-on-surface px-2 py-1 rounded-sm font-data-md text-xs w-full" placeholder="指定絕對不可出現的模組" data-char="${c.id}" data-row="${rowIdx}" value="${row.forbid || ''}">
+                                                </div>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="font-label-caps text-[8px] text-primary-fixed-dim block mb-1">模組使用原因 (Reason/Context) - AI 生成提示方向</label>
+                                                <textarea class="reason-input w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-xs min-h-[60px]" placeholder="說明為什麼要使用此模組，作為生成潛台詞、微表情和戲劇張力的核心動機..." data-char="${c.id}" data-row="${rowIdx}">${row.reason || ''}</textarea>
+                                            </div>
+                                        </div>
+                                    `).join('') : '<div class="text-xs text-on-surface-variant/50 p-2 text-center">尚未添加模組，請點擊上方按鈕新增</div>'}
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-1 pt-2 border-t border-outline-variant">
+                                <label class="font-label-caps text-[8px] text-on-surface-variant">自定義標籤 (Tags)</label>
+                                <input type="text" value="${charData.tags || ''}" data-char="${c.id}" class="char-tags-input w-full bg-surface border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" placeholder="例：主角, 敵對">
+                            </div>
                         </div>
                     </div>
-                `).join('')}
+                `}).join('')}
             </div>
             <div class="pt-2 border-t border-outline-variant"><label class="font-label-caps text-[10px] text-on-surface-variant">段落設定繼承</label><div class="flex gap-2 mt-1"><select id="inherit-src" class="flex-1 bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-xs">${["起", "承", "轉", "合"].map((name, i) => i !== state.currentTab ? `<option value="${i}">從【${name}】帶入</option>` : '').join('')}</select><button id="inherit-btn" class="bg-surface-container-high text-on-surface px-3 py-1.5 rounded-sm font-label-caps text-xs border border-outline-variant">📥 帶入</button></div></div>
         `;
@@ -1761,10 +1090,99 @@
         document.getElementById('hook-input').oninput = (e) => tabData.hook = e.target.value;
         document.getElementById('action-text').oninput = (e) => tabData.actionText = e.target.value;
 
-        tabContent.querySelectorAll('.char-check').forEach(cb => { cb.onchange = (e) => { const code = e.target.dataset.code; if (!tabData.characters[code]) tabData.characters[code] = { checked: false, settings: {} }; tabData.characters[code].checked = e.target.checked; renderTabContent(); }; });
-        tabContent.querySelectorAll('.mod-select').forEach(sel => { sel.onchange = (e) => { const charCode = e.target.dataset.char; const type = e.target.dataset.type; if (!tabData.characters[charCode].settings[type]) tabData.characters[charCode].settings[type] = {}; tabData.characters[charCode].settings[type].name = e.target.value; }; });
-        tabContent.querySelectorAll('.must-input').forEach(inp => { inp.oninput = (e) => { const charCode = e.target.dataset.char; const type = e.target.dataset.type; if (!tabData.characters[charCode].settings[type]) tabData.characters[charCode].settings[type] = {}; tabData.characters[charCode].settings[type].must = e.target.value; }; });
-        tabContent.querySelectorAll('.forbid-input').forEach(inp => { inp.oninput = (e) => { const charCode = e.target.dataset.char; const type = e.target.dataset.type; if (!tabData.characters[charCode].settings[type]) tabData.characters[charCode].settings[type] = {}; tabData.characters[charCode].settings[type].forbid = e.target.value; }; });
+        // 角色勾選事件
+        tabContent.querySelectorAll('.char-check').forEach(cb => { 
+            cb.onchange = (e) => { 
+                const code = e.target.dataset.code; 
+                if (!tabData.characters[code]) tabData.characters[code] = { checked: false, moduleRows: [] }; 
+                tabData.characters[code].checked = e.target.checked; 
+                renderTabContent(); 
+            }; 
+        });
+
+        // 新增模組行按鈕
+        tabContent.querySelectorAll('.add-module-row-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                const charCode = e.target.dataset.char;
+                if (!tabData.characters[charCode].moduleRows) {
+                    tabData.characters[charCode].moduleRows = [];
+                }
+                tabData.characters[charCode].moduleRows.push({
+                    category: '',
+                    code: '',
+                    must: '',
+                    forbid: '',
+                    reason: ''
+                });
+                renderTabContent();
+            };
+        });
+
+        // 刪除模組行按鈕
+        tabContent.querySelectorAll('.remove-module-row-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                const charCode = e.target.dataset.char;
+                const rowIdx = parseInt(e.target.dataset.row);
+                tabData.characters[charCode].moduleRows.splice(rowIdx, 1);
+                renderTabContent();
+            };
+        });
+
+        // 模組類別選擇變更
+        tabContent.querySelectorAll('.mod-category-select').forEach(sel => {
+            sel.onchange = (e) => {
+                const charCode = e.target.dataset.char;
+                const rowIdx = parseInt(e.target.dataset.row);
+                tabData.characters[charCode].moduleRows[rowIdx].category = e.target.value;
+                tabData.characters[charCode].moduleRows[rowIdx].code = ''; // 重置模組選擇
+                renderTabContent();
+            };
+        });
+
+        // 模組代碼選擇變更
+        tabContent.querySelectorAll('.mod-code-select').forEach(sel => {
+            sel.onchange = (e) => {
+                const charCode = e.target.dataset.char;
+                const rowIdx = parseInt(e.target.dataset.row);
+                tabData.characters[charCode].moduleRows[rowIdx].code = e.target.value;
+            };
+        });
+
+        // MUST EXECUTE 輸入
+        tabContent.querySelectorAll('.must-execute-input').forEach(inp => {
+            inp.oninput = (e) => {
+                const charCode = e.target.dataset.char;
+                const rowIdx = parseInt(e.target.dataset.row);
+                tabData.characters[charCode].moduleRows[rowIdx].must = e.target.value;
+            };
+        });
+
+        // FORBID 輸入
+        tabContent.querySelectorAll('.forbid-input').forEach(inp => {
+            inp.oninput = (e) => {
+                const charCode = e.target.dataset.char;
+                const rowIdx = parseInt(e.target.dataset.row);
+                tabData.characters[charCode].moduleRows[rowIdx].forbid = e.target.value;
+            };
+        });
+
+        // Reason 輸入
+        tabContent.querySelectorAll('.reason-input').forEach(inp => {
+            inp.oninput = (e) => {
+                const charCode = e.target.dataset.char;
+                const rowIdx = parseInt(e.target.dataset.row);
+                tabData.characters[charCode].moduleRows[rowIdx].reason = e.target.value;
+            };
+        });
+
+        // Tags 輸入
+        tabContent.querySelectorAll('.char-tags-input').forEach(inp => {
+            inp.oninput = (e) => {
+                const charCode = e.target.dataset.char;
+                if (!tabData.characters[charCode]) tabData.characters[charCode] = { checked: false, moduleRows: [] };
+                tabData.characters[charCode].tags = e.target.value;
+            };
+        });
 
         document.getElementById('inherit-btn').onclick = () => {
             const srcIdx = parseInt(document.getElementById('inherit-src').value);
@@ -1775,6 +1193,7 @@
         };
     }
 
+    // --- Triggers View ---
     function renderTriggersView(container) {
         const prompts = state.config.prompts || { "AUDIT": "【自我審計協議】\n請執行自我審計，檢查上述生成內容是否違反當前生效模組。" };
         const book = getCurrentBook();
@@ -1787,7 +1206,7 @@
                 <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2 mt-6">大綱預覽與導出</h2>
                 <div class="glass-panel p-3 rounded-sm"><pre id="outline-preview" class="font-data-md text-[10px] text-on-surface-variant whitespace-pre-wrap max-h-[300px] overflow-y-auto"></pre></div>
                 <div class="grid grid-cols-2 gap-2">
-                    <button id="refresh-preview" class="bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">🔄 更新預覽</button>
+                    <button id="refresh-preview" class="bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">👁️ 更新預覽</button>
                     <button id="copy-outline" class="bg-primary-container text-on-primary-fixed py-2 rounded-sm font-label-caps text-xs flex items-center justify-center gap-1 cyan-glow"><span class="material-symbols-outlined text-[16px]">content_copy</span> 複製全部大綱</button>
                 </div>
             </div>
@@ -1821,30 +1240,32 @@
                 const charObj = book ? book.actors.find(a => a.id === charId) : null;
                 if (charData.checked && charObj) {
                     hasChars = true;
-                    outline += `  - [${charObj.name}] ${charObj.oopCode ? '['+charObj.oopCode+']' : ''}:\n`;
+                    outline += `  - [${charObj.name}] ${charObj.oopCode ? '('+charObj.oopCode+')' : ''}:\n`;
                     
-                    if (charObj.linkedModules && charObj.linkedModules.length > 0) {
-                        outline += `    - OOP 模組關聯 (Templates):\n`;
-                        charObj.linkedModules.forEach(modCode => {
-                            let modName = modCode;
-                            for (const catKey in state.moduleData) {
-                                const mod = state.moduleData[catKey].find(m => m.code === modCode);
-                                if (mod) {
-                                    modName = mod.name;
-                                    break;
-                                }
+                    // 處理表列式模組設定
+                    if (charData.moduleRows && charData.moduleRows.length > 0) {
+                        charData.moduleRows.forEach((row, idx) => {
+                            if (row.code) {
+                                const modInfo = state.moduleData[row.category]?.find(m => m.code === row.code);
+                                const modName = modInfo ? modInfo.name : row.code;
+                                outline += `    - [模組 ${idx + 1}] ${modName} [${row.code}]\n`;
+                                if (row.must) outline += `      MUST: ${row.must}\n`;
+                                if (row.forbid) outline += `      FORBID: ${row.forbid}\n`;
+                                if (row.reason) outline += `      REASON: ${row.reason}\n`;
                             }
-                            outline += `      - ${modName} [${modCode}]\n`;
                         });
                     }
                     
+                    // 兼容舊格式
                     const labelMap = {};
                     state.config.outlineModTypes.forEach(mt => labelMap[mt.key] = mt.label);
-                    for (const key in charData.settings) {
-                        const s = charData.settings[key];
-                        if (s.name) outline += `    - ${labelMap[key] || key}: ${s.name}\n`;
-                        if (s.must) outline += `    - [MUST_EXECUTE (${labelMap[key] || key})]: ${s.must}\n`;
-                        if (s.forbid) outline += `    - [FORBIDDEN_EXECUTE (${labelMap[key] || key})]: ${s.forbid}\n`;
+                    if (charData.settings) {
+                        for (const key in charData.settings) {
+                            const s = charData.settings[key];
+                            if (s.name) outline += `    - ${labelMap[key] || key}: ${s.name}\n`;
+                            if (s.must) outline += `    - [MUST_EXECUTE (${labelMap[key] || key})]: ${s.must}\n`;
+                            if (s.forbid) outline += `    - [FORBIDDEN_EXECUTE (${labelMap[key] || key})]: ${s.forbid}\n`;
+                        }
                     }
                 }
             }
@@ -1856,17 +1277,16 @@
         return outline;
     }
 
+    // --- Event Listeners & Init ---
     document.getElementById('auth-btn').addEventListener('click', () => {
-        if (!state.tokenClient) {
-            alert('Google 登入服務尚未載入完成，請稍候片刻或檢查網路連線。');
-            return;
-        }
+        if (!state.tokenClient) return;
         if (gapi.client.getToken()) { performPostLoginActions(); return; }
         state.tokenClient.requestAccessToken({prompt: 'consent'});
     });
     document.getElementById('logout-btn').addEventListener('click', () => { localStorage.removeItem('tdf_access_token'); gapi.client.setToken(null); location.reload(); });
     document.querySelectorAll('.nav-btn').forEach(btn => { btn.onclick = () => { state.currentView = btn.dataset.view; renderCurrentView(); }; });
     
+    // === 導航選單收起/展開邏輯 ===
     function toggleNav(collapse) {
         const expanded = document.getElementById('nav-expanded');
         const collapsed = document.getElementById('nav-collapsed');
@@ -1893,7 +1313,7 @@
     document.getElementById('nav-collapse-btn').addEventListener('click', () => toggleNav(true));
     document.getElementById('nav-expand-btn').addEventListener('click', () => toggleNav(false));
 
-    window.addEventListener('load', initGoogleApis);
+    window.onload = () => { gapiLoaded(); gisLoaded(); };
 </script>
 </body>
 </html>
