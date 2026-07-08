@@ -423,7 +423,8 @@
                 indexData.categories[cat.key] = [];
                 
                 for (const file of files) {
-                    if (file.name.endsWith('.txt') && file.name !== 'README.txt') {
+                  const lowerName = file.name.toLowerCase();
+                    if (lowerName.endsWith('.txt') && lowerName !== 'readme.txt') {
                         try {
                             const content = await DriveAPI.getFileContent(file.id);
                             const parsed = this.parseModule(content, file.name);
@@ -484,7 +485,8 @@
                 const files = await DriveAPI.listFiles(currentParentId);
                 state.moduleData[cat.key] = [];
                 for (const file of files) {
-                    if (file.name.endsWith('.txt') && file.name !== 'README.txt') {
+                   const lowerName = file.name.toLowerCase();
+                    if (lowerName.endsWith('.txt') && lowerName !== 'readme.txt') {
                         try {
                             const content = await DriveAPI.getFileContent(file.id);
                             const parsed = this.parseModule(content, file.name);
