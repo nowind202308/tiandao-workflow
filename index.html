@@ -64,13 +64,13 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.013)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.014)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.013)</h1>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.014)</h1>
     </div>
     <div class="flex items-center gap-3">
         <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -157,7 +157,9 @@
         // 新增：Modules 頁面控制狀態
         moduleSearchQuery: '',
         moduleCollapsedCategories: new Set(),
-        moduleVisibleCategories: new Set()
+        moduleVisibleCategories: new Set(),
+        // 【修正 1】新增旗標：追蹤類別是否已初始化過
+        moduleCategoriesInitialized: false
     };
 
     function handleTokenResponse(resp) {
@@ -1117,11 +1119,12 @@
         };
     }
 
-    // === 新增：Modules 頁面渲染函數（含搜尋、類別勾選、收起/展開） ===
+    // === 修正版：Modules 頁面渲染函數（含搜尋、類別勾選、收起/展開） ===
     function renderModulesView(container) {
-        // 初始化可見類別（如果為空，則全部可見）
-        if (state.moduleVisibleCategories.size === 0) {
+        // 【修正 1】只在第一次載入時初始化可見類別，避免「全不選」被覆蓋
+        if (!state.moduleCategoriesInitialized) {
             state.config.categories.forEach(cat => state.moduleVisibleCategories.add(cat.key));
+            state.moduleCategoriesInitialized = true;
         }
         
         let html = `
@@ -1210,11 +1213,22 @@
         container.innerHTML = html;
         
         // 綁定事件
-        // 搜尋框
-        document.getElementById('module-search').oninput = (e) => {
-            state.moduleSearchQuery = e.target.value;
-            renderModulesView(container);
-        };
+        // 【修正 2】搜尋框：渲染後重新 focus 並恢復游標位置
+        const searchInput = document.getElementById('module-search');
+        if (searchInput) {
+            searchInput.oninput = (e) => {
+                state.moduleSearchQuery = e.target.value;
+                // 記錄當前游標位置
+                const cursorPos = e.target.selectionStart;
+                renderModulesView(container);
+                // 重新 focus 並恢復游標位置
+                const newInput = document.getElementById('module-search');
+                if (newInput) {
+                    newInput.focus();
+                    newInput.setSelectionRange(cursorPos, cursorPos);
+                }
+            };
+        }
         
         // 類別勾選
         document.querySelectorAll('.cat-checkbox').forEach(cb => {
@@ -1226,6 +1240,11 @@
                     state.moduleVisibleCategories.delete(key);
                 }
                 renderModulesView(container);
+                // 【修正 2】重新 focus 搜尋框
+                const searchInput = document.getElementById('module-search');
+                if (searchInput) {
+                    searchInput.focus();
+                }
             };
         });
         
@@ -1233,11 +1252,21 @@
         document.getElementById('select-all-cats').onclick = () => {
             state.config.categories.forEach(cat => state.moduleVisibleCategories.add(cat.key));
             renderModulesView(container);
+            // 【修正 2】重新 focus 搜尋框
+            const searchInput = document.getElementById('module-search');
+            if (searchInput) {
+                searchInput.focus();
+            }
         };
         
         document.getElementById('deselect-all-cats').onclick = () => {
             state.moduleVisibleCategories.clear();
             renderModulesView(container);
+            // 【修正 2】重新 focus 搜尋框
+            const searchInput = document.getElementById('module-search');
+            if (searchInput) {
+                searchInput.focus();
+            }
         };
         
         // 收起/展開
@@ -1250,6 +1279,11 @@
                     state.moduleCollapsedCategories.add(key);
                 }
                 renderModulesView(container);
+                // 【修正 2】重新 focus 搜尋框
+                const searchInput = document.getElementById('module-search');
+                if (searchInput) {
+                    searchInput.focus();
+                }
             };
         });
         
