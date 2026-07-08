@@ -34,6 +34,11 @@
         #nav-expanded { opacity: 1; transition: opacity 0.3s ease; }
         #nav-collapsed { opacity: 0; transform: scale(0.5); transition: opacity 0.3s ease, transform 0.3s ease; }
         #nav-collapsed.show { opacity: 1; transform: scale(1); }
+        
+        /* 標籤雲樣式 */
+        .tag-cloud-btn { transition: all 0.2s ease; }
+        .tag-cloud-btn:hover { transform: translateY(-2px); }
+        .tag-cloud-btn.active { background: #00f2ff; color: #002022; }
     </style>
 
     <script id="tailwind-config">
@@ -64,13 +69,13 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.016)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.017)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.016)</h1>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.017)</h1>
     </div>
     <div class="flex items-center gap-3">
         <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -102,6 +107,10 @@
             <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="modules">
                 <span class="material-symbols-outlined text-[20px]">database</span>
                 <span class="font-label-caps text-[8px] uppercase">Modules</span>
+            </button>
+            <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="tags">
+                <span class="material-symbols-outlined text-[20px]">sell</span>
+                <span class="font-label-caps text-[8px] uppercase">Tags</span>
             </button>
             <button class="nav-btn flex flex-col items-center gap-1 text-on-surface-variant pt-2 pb-1 px-2" data-view="outline">
                 <span class="material-symbols-outlined text-[20px]">edit_document</span>
@@ -157,7 +166,11 @@
         moduleSearchQuery: '',
         moduleCollapsedCategories: new Set(),
         moduleVisibleCategories: new Set(),
-        moduleCategoriesInitialized: false
+        moduleCategoriesInitialized: false,
+        // 標籤管理系統狀態
+        selectedModules: new Set(),
+        tagFilter: null,
+        tagSearchQuery: ''
     };
 
     function handleTokenResponse(resp) {
@@ -345,13 +358,18 @@
             const code = codeMatch ? codeMatch[1].trim() : filename.replace(/\.(txt|ahk)$/, '');
             const nameMatch = content.match(/^\s*\[NAME\]\s*[:：]\s*(.+?)\s*$/m);
             const name = nameMatch ? nameMatch[1].trim() : code;
+            
+            // 提取標籤
+            const tagsMatch = content.match(/\[TAGS\]\s*[:：]\s*(.+)/i);
+            const tags = tagsMatch ? tagsMatch[1].split(',').map(t => t.trim()).filter(t => t) : [];
+            
             const extractField = (fieldName) => {
                 const regex = new RegExp(`^\\s*\\[${fieldName}\\]\\s*[:：]\\s*(.*?)(?=\\r?\\n\\s*\\[|\\r?\\n\\s*[A-Z_]+\\s*[:：]|$)`, 'ms');
                 const match = content.match(regex);
                 return match ? match[1].trim() : '';
             };
             return {
-                code, name,
+                code, name, tags,
                 description: extractField('DESCRIPTION') || extractField('EFFECT') || extractField('CORE_CONCEPT'),
                 weight: parseFloat(extractField('WEIGHT')) || 0.5,
                 blockedBy: extractField('BLOCKED_BY') || extractField('BLOCKED_ACTIONS'),
@@ -377,13 +395,13 @@
                     name: mod.name,
                     fileId: mod.fileId,
                     category: category,
+                    tags: mod.tags || [],
                     rawContent: null
                 }));
             }
         },
         
         async buildAndSaveIndex() {
-            // 【強化 1】確保使用最新的配置
             const configId = await DriveAPI.findId(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, false);
             if (configId) {
                 const content = await DriveAPI.getFileContent(configId);
@@ -406,11 +424,9 @@
             for (const cat of state.config.categories) {
                 let currentParentId = state.driveIds.root;
                 
-                // 【關鍵修復】遍歷路徑時，自動建立缺失的資料夾
                 for (const folderName of cat.path) {
                     let folderId = await DriveAPI.findId(folderName, currentParentId, true);
                     if (!folderId) {
-                        // 自動建立缺失的資料夾
                         console.log(`[Index] 自動建立缺失資料夾: ${folderName}`);
                         const res = await DriveAPI.createFolder(folderName, currentParentId);
                         folderId = res.id;
@@ -423,7 +439,7 @@
                 indexData.categories[cat.key] = [];
                 
                 for (const file of files) {
-                  const lowerName = file.name.toLowerCase();
+                    const lowerName = file.name.toLowerCase();
                     if (lowerName.endsWith('.txt') && lowerName !== 'readme.txt') {
                         try {
                             const content = await DriveAPI.getFileContent(file.id);
@@ -433,7 +449,8 @@
                                 indexData.categories[cat.key].push({
                                     id: parsed.code,
                                     name: parsed.name,
-                                    fileId: file.id
+                                    fileId: file.id,
+                                    tags: parsed.tags
                                 });
                                 totalModules++;
                             } else {
@@ -485,7 +502,7 @@
                 const files = await DriveAPI.listFiles(currentParentId);
                 state.moduleData[cat.key] = [];
                 for (const file of files) {
-                   const lowerName = file.name.toLowerCase();
+                    const lowerName = file.name.toLowerCase();
                     if (lowerName.endsWith('.txt') && lowerName !== 'readme.txt') {
                         try {
                             const content = await DriveAPI.getFileContent(file.id);
@@ -499,6 +516,49 @@
             }
         }
     };
+
+    // 標籤管理系統函數
+    async function updateModuleTags(fileId, newTags) {
+        let content = await DriveAPI.getFileContent(fileId);
+        content = content.replace(/\[TAGS\]\s*[:：]\s*.+/i, '');
+        if (newTags.length > 0) {
+            content += `\n[TAGS]: ${newTags.join(', ')}`;
+        }
+        await DriveAPI.updateFile(fileId, content);
+        
+        // 更新 state
+        for (const catKey in state.moduleData) {
+            const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
+            if (mod) {
+                mod.tags = newTags;
+                break;
+            }
+        }
+    }
+
+    async function removeTagFromModule(fileId, tagToRemove) {
+        let content = await DriveAPI.getFileContent(fileId);
+        const tagsMatch = content.match(/\[TAGS\]\s*[:：]\s*(.+)/i);
+        let tags = [];
+        if (tagsMatch) {
+            tags = tagsMatch[1].split(',').map(t => t.trim()).filter(t => t && t !== tagToRemove);
+            content = content.replace(/\[TAGS\]\s*[:：]\s*.+/i, '');
+        }
+        
+        if (tags.length > 0) {
+            content += `\n[TAGS]: ${tags.join(', ')}`;
+        }
+        
+        await DriveAPI.updateFile(fileId, content);
+        
+        for (const catKey in state.moduleData) {
+            const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
+            if (mod) {
+                mod.tags = tags;
+                break;
+            }
+        }
+    }
 
     async function initializeEnvironment() {
         const mask = document.getElementById('mask-status');
@@ -546,6 +606,7 @@
             case 'system': renderSystemView(container); break;
             case 'books': renderBooksView(container); break;
             case 'modules': renderModulesView(container); break;
+            case 'tags': renderTagsView(container); break;
             case 'outline': renderOutlineView(container); break;
             case 'triggers': renderTriggersView(container); break;
         }
@@ -1175,6 +1236,17 @@
                             `).join('')}
                         </div>
                     </div>
+                    
+                    <!-- 批量操作區域 -->
+                    <div class="border-t border-outline-variant pt-3">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="font-label-caps text-[10px] text-on-surface-variant">📦 批量操作 (已選: <span id="selected-count">${state.selectedModules.size}</span> 個)</label>
+                            <div class="flex gap-2">
+                                <button id="batch-add-tag-btn" class="bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm text-[10px] ${state.selectedModules.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}">批量添加標籤</button>
+                                <button id="batch-remove-tag-btn" class="bg-error-container/20 text-error px-2 py-1 rounded-sm text-[10px] ${state.selectedModules.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}">批量移除標籤</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
         `;
         
@@ -1206,12 +1278,23 @@
                         <div class="grid grid-cols-1 gap-2">
                             ${filteredMods.length === 0 ? '<div class="text-xs text-on-surface-variant glass-panel p-2 rounded">無符合條件的模組</div>' : 
                             filteredMods.map(m => `
-                                <div class="glass-panel p-3 rounded-sm flex justify-between items-center cursor-pointer hover:bg-surface-container-highest transition-colors module-item" data-id="${m.code}" data-cat="${cat.key}">
-                                    <div>
-                                        <div class="font-data-md text-sm text-on-surface">${m.name}</div>
-                                        <div class="font-label-caps text-[8px] text-outline uppercase">${m.code}</div>
+                                <div class="glass-panel p-3 rounded-sm flex justify-between items-center hover:bg-surface-container-highest transition-colors">
+                                    <div class="flex items-center gap-3 flex-1">
+                                        <input type="checkbox" class="module-checkbox rounded text-primary-container" data-fileid="${m.fileId}" 
+                                               ${state.selectedModules.has(m.fileId) ? 'checked' : ''}>
+                                        <div class="flex-1">
+                                            <div class="font-data-md text-sm text-on-surface">${m.name}</div>
+                                            <div class="font-label-caps text-[8px] text-outline uppercase">${m.code}</div>
+                                            ${m.tags && m.tags.length > 0 ? `
+                                                <div class="flex flex-wrap gap-1 mt-1">
+                                                    ${m.tags.map(tag => `<span class="text-[8px] px-1 bg-primary-container/20 text-primary-fixed-dim rounded">${tag}</span>`).join('')}
+                                                </div>
+                                            ` : ''}
+                                        </div>
                                     </div>
-                                    <span class="material-symbols-outlined text-outline text-[18px]">edit</span>
+                                    <button class="edit-module-btn text-on-surface-variant hover:text-primary-fixed-dim p-1" data-fileid="${m.fileId}" data-catkey="${cat.key}">
+                                        <span class="material-symbols-outlined text-[18px]">edit</span>
+                                    </button>
                                 </div>
                             `).join('')}
                         </div>
@@ -1287,13 +1370,103 @@
             };
         });
         
-        container.querySelectorAll('.module-item').forEach(el => { 
-            el.onclick = () => openModuleEditor(el.dataset.id, el.dataset.cat); 
+        // 模組勾選事件
+        document.querySelectorAll('.module-checkbox').forEach(cb => {
+            cb.onchange = (e) => {
+                const fileId = e.target.dataset.fileid;
+                if (e.target.checked) {
+                    state.selectedModules.add(fileId);
+                } else {
+                    state.selectedModules.delete(fileId);
+                }
+                document.getElementById('selected-count').innerText = state.selectedModules.size;
+                document.getElementById('batch-add-tag-btn').classList.toggle('opacity-50', state.selectedModules.size === 0);
+                document.getElementById('batch-add-tag-btn').classList.toggle('cursor-not-allowed', state.selectedModules.size === 0);
+                document.getElementById('batch-remove-tag-btn').classList.toggle('opacity-50', state.selectedModules.size === 0);
+                document.getElementById('batch-remove-tag-btn').classList.toggle('cursor-not-allowed', state.selectedModules.size === 0);
+            };
         });
+        
+        // 編輯模組按鈕
+        document.querySelectorAll('.edit-module-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                const fileId = e.currentTarget.dataset.fileid;
+                const catKey = e.currentTarget.dataset.catkey;
+                openModuleEditor(fileId, catKey);
+            };
+        });
+        
+        // 批量操作按鈕
+        document.getElementById('batch-add-tag-btn').onclick = () => {
+            if (state.selectedModules.size === 0) return;
+            const tag = prompt(`請輸入要添加的標籤 (將添加到 ${state.selectedModules.size} 個模組):`);
+            if (tag && tag.trim()) {
+                batchAddTag(tag.trim());
+            }
+        };
+        
+        document.getElementById('batch-remove-tag-btn').onclick = () => {
+            if (state.selectedModules.size === 0) return;
+            const tag = prompt(`請輸入要移除的標籤 (將從 ${state.selectedModules.size} 個模組移除):`);
+            if (tag && tag.trim()) {
+                batchRemoveTag(tag.trim());
+            }
+        };
     }
 
-    function openModuleEditor(code, catKey) {
-        const mod = state.moduleData[catKey].find(m => m.code === code);
+    async function batchAddTag(tag) {
+        document.getElementById('mask-status').innerText = 'BATCH ADDING TAG...';
+        document.getElementById('secure-mask').classList.remove('hidden-mask');
+        
+        for (const fileId of state.selectedModules) {
+            let content = await DriveAPI.getFileContent(fileId);
+            const tagsMatch = content.match(/\[TAGS\]\s*[:：]\s*(.+)/i);
+            let tags = [];
+            if (tagsMatch) {
+                tags = tagsMatch[1].split(',').map(t => t.trim()).filter(t => t);
+                content = content.replace(/\[TAGS\]\s*[:：]\s*.+/i, '');
+            }
+            
+            if (!tags.includes(tag)) {
+                tags.push(tag);
+            }
+            
+            if (tags.length > 0) {
+                content += `\n[TAGS]: ${tags.join(', ')}`;
+            }
+            
+            await DriveAPI.updateFile(fileId, content);
+            
+            // 更新 state
+            for (const catKey in state.moduleData) {
+                const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
+                if (mod) {
+                    mod.tags = tags;
+                    break;
+                }
+            }
+        }
+        
+        document.getElementById('secure-mask').classList.add('hidden-mask');
+        renderCurrentView();
+        alert(`已為 ${state.selectedModules.size} 個模組添加標籤 "${tag}"`);
+    }
+
+    async function batchRemoveTag(tag) {
+        document.getElementById('mask-status').innerText = 'BATCH REMOVING TAG...';
+        document.getElementById('secure-mask').classList.remove('hidden-mask');
+        
+        for (const fileId of state.selectedModules) {
+            await removeTagFromModule(fileId, tag);
+        }
+        
+        document.getElementById('secure-mask').classList.add('hidden-mask');
+        renderCurrentView();
+        alert(`已從 ${state.selectedModules.size} 個模組移除標籤 "${tag}"`);
+    }
+
+    function openModuleEditor(fileId, catKey) {
+        const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
         if (!mod) return;
         
         const loadAndEdit = async () => {
@@ -1303,12 +1476,12 @@
                 mod.rawContent = await DriveAPI.getFileContent(mod.fileId);
                 document.getElementById('secure-mask').classList.add('hidden-mask');
             }
-            renderModuleEditorModal(mod);
+            renderModuleEditorModal(mod, catKey);
         };
         loadAndEdit();
     }
 
-    function renderModuleEditorModal(mod) {
+    function renderModuleEditorModal(mod, catKey) {
         const modal = document.getElementById('modal-container');
         modal.classList.remove('hidden');
         modal.innerHTML = `
@@ -1341,7 +1514,7 @@
         document.getElementById('save-as').onclick = async () => {
             const newName = prompt('請輸入新模組名稱 (不含 .txt):'); if (!newName) return;
             const content = document.getElementById('editor-content').value;
-            const cat = state.config.categories.find(c => c.key === mod.category);
+            const cat = state.config.categories.find(c => c.key === catKey);
             
             if (!cat) {
                 alert('錯誤：找不到對應的分類配置！');
@@ -1365,6 +1538,145 @@
             renderCurrentView();
             alert('新模組已儲存，索引已更新！');
         };
+    }
+
+    // 標籤管理系統頁面
+    function renderTagsView(container) {
+        // 收集所有標籤及其數量
+        const tagMap = {};
+        for (const catKey in state.moduleData) {
+            for (const mod of state.moduleData[catKey]) {
+                if (mod.tags && mod.tags.length > 0) {
+                    for (const tag of mod.tags) {
+                        if (!tagMap[tag]) {
+                            tagMap[tag] = { count: 0, modules: [] };
+                        }
+                        tagMap[tag].count++;
+                        tagMap[tag].modules.push({
+                            code: mod.code,
+                            name: mod.name,
+                            fileId: mod.fileId,
+                            catKey: catKey
+                        });
+                    }
+                }
+            }
+        }
+        
+        const tags = Object.keys(tagMap).sort();
+        
+        let html = `
+            <div class="p-gutter space-y-4 pb-40">
+                <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">標籤管理系統</h2>
+                
+                <!-- 標籤搜尋 -->
+                <div class="glass-panel p-4 rounded-sm">
+                    <div class="space-y-1">
+                        <label class="font-label-caps text-[10px] text-on-surface-variant">🔍 搜尋標籤</label>
+                        <input type="text" id="tag-search" value="${state.tagSearchQuery}" 
+                               class="w-full bg-surface-container-high border border-outline text-on-surface px-3 py-2 rounded-sm font-data-md text-sm"
+                               placeholder="輸入標籤名稱...">
+                    </div>
+                </div>
+                
+                <!-- 標籤雲 -->
+                <div class="glass-panel p-4 rounded-sm">
+                    <h3 class="font-label-caps text-xs text-on-surface-variant mb-2">所有標籤 (${tags.length})</h3>
+                    <div class="flex flex-wrap gap-2">
+                        ${tags.filter(tag => !state.tagSearchQuery || tag.toLowerCase().includes(state.tagSearchQuery.toLowerCase())).map(tag => `
+                            <button class="tag-cloud-btn px-3 py-1 rounded-full bg-surface-container-high text-on-surface text-xs hover:bg-primary-container hover:text-on-primary-fixed transition-colors ${state.tagFilter === tag ? 'active' : ''}" data-tag="${tag}">
+                                ${tag} <span class="opacity-50">(${tagMap[tag].count})</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <!-- 標籤篩選結果 -->
+                ${state.tagFilter ? `
+                    <div class="glass-panel p-4 rounded-sm">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-label-caps text-xs text-on-surface-variant">篩選結果: <span class="text-primary-fixed-dim">${state.tagFilter}</span> (${tagMap[state.tagFilter].modules.length} 個模組)</h3>
+                            <button id="clear-tag-filter" class="text-error text-[10px] hover:underline">清除篩選</button>
+                        </div>
+                        <div class="space-y-2">
+                            ${tagMap[state.tagFilter].modules.map(mod => `
+                                <div class="flex justify-between items-center p-2 bg-surface-container-high rounded-sm">
+                                    <div>
+                                        <div class="text-sm">${mod.name}</div>
+                                        <div class="text-[10px] opacity-50">${mod.code}</div>
+                                    </div>
+                                    <button class="remove-tag-from-module-btn bg-error-container/20 text-error px-2 py-1 rounded-sm text-[10px]" data-fileid="${mod.fileId}" data-tag="${state.tagFilter}">移除此標籤</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <!-- 標籤管理 -->
+                <div class="glass-panel p-4 rounded-sm">
+                    <h3 class="font-label-caps text-xs text-on-surface-variant mb-2">標籤操作說明</h3>
+                    <div class="text-xs text-on-surface-variant space-y-1">
+                        <p>• 點擊標籤雲中的標籤可篩選擁有該標籤的模組</p>
+                        <p>• 在 Modules 頁面中，可以為模組添加或移除標籤</p>
+                        <p>• 使用批量操作功能，可以一次性為多個模組添加/移除標籤</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        
+        // 標籤搜尋事件
+        const tagSearchInput = document.getElementById('tag-search');
+        if (tagSearchInput) {
+            tagSearchInput.oninput = (e) => {
+                state.tagSearchQuery = e.target.value;
+                const cursorPos = e.target.selectionStart;
+                renderTagsView(container);
+                const newInput = document.getElementById('tag-search');
+                if (newInput) {
+                    newInput.focus();
+                    newInput.setSelectionRange(cursorPos, cursorPos);
+                }
+            };
+        }
+        
+        // 標籤雲點擊事件
+        container.querySelectorAll('.tag-cloud-btn').forEach(btn => {
+            btn.onclick = () => {
+                const tag = btn.dataset.tag;
+                if (state.tagFilter === tag) {
+                    state.tagFilter = null;
+                } else {
+                    state.tagFilter = tag;
+                }
+                renderTagsView(container);
+            };
+        });
+        
+        // 清除篩選
+        const clearFilterBtn = document.getElementById('clear-tag-filter');
+        if (clearFilterBtn) {
+            clearFilterBtn.onclick = () => {
+                state.tagFilter = null;
+                renderTagsView(container);
+            };
+        }
+        
+        // 移除標籤按鈕
+        container.querySelectorAll('.remove-tag-from-module-btn').forEach(btn => {
+            btn.onclick = async () => {
+                const fileId = btn.dataset.fileid;
+                const tagToRemove = btn.dataset.tag;
+                if (confirm(`確定要從模組中移除標籤 "${tagToRemove}" 嗎？`)) {
+                    document.getElementById('mask-status').innerText = 'REMOVING TAG...';
+                    document.getElementById('secure-mask').classList.remove('hidden-mask');
+                    await removeTagFromModule(fileId, tagToRemove);
+                    document.getElementById('secure-mask').classList.add('hidden-mask');
+                    renderTagsView(container);
+                }
+            };
+        });
     }
 
     function renderOutlineView(container) {
