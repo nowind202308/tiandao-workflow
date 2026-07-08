@@ -64,13 +64,13 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.014)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.015)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.014)</h1>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.015)</h1>
     </div>
     <div class="flex items-center gap-3">
         <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -154,11 +154,9 @@
         currentTab: 0,
         isInitialized: false,
         navCollapsed: false,
-        // 新增：Modules 頁面控制狀態
         moduleSearchQuery: '',
         moduleCollapsedCategories: new Set(),
         moduleVisibleCategories: new Set(),
-        // 【修正 1】新增旗標：追蹤類別是否已初始化過
         moduleCategoriesInitialized: false
     };
 
@@ -385,16 +383,25 @@
         },
         
         async buildAndSaveIndex() {
+            // 【強化 1】確保使用最新的配置
+            const configId = await DriveAPI.findId(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, false);
+            if (configId) {
+                const content = await DriveAPI.getFileContent(configId);
+                state.config = JSON.parse(content);
+            }
+
             const indexData = {
                 meta: {
                     version: "1.0",
                     last_updated: new Date().toISOString(),
-                    total_modules: 0
+                    total_modules: 0,
+                    scanned_categories: 0
                 },
                 categories: {}
             };
             
             let totalModules = 0;
+            let scannedCategories = 0;
             
             for (const cat of state.config.categories) {
                 let currentParentId = state.driveIds.root;
@@ -404,8 +411,13 @@
                     if (!id) { validPath = false; break; }
                     currentParentId = id;
                 }
-                if (!validPath) continue;
                 
+                if (!validPath) {
+                    console.warn(`[Index] 跳過分類 ${cat.key}，路徑不存在: ${cat.path.join('/')}`);
+                    continue;
+                }
+                
+                scannedCategories++;
                 const files = await DriveAPI.listFiles(currentParentId);
                 indexData.categories[cat.key] = [];
                 
@@ -415,21 +427,25 @@
                             const content = await DriveAPI.getFileContent(file.id);
                             const parsed = this.parseModule(content, file.name);
                             
-                            indexData.categories[cat.key].push({
-                                id: parsed.code,
-                                name: parsed.name,
-                                fileId: file.id
-                            });
-                            
-                            totalModules++;
+                            if (parsed.code) {
+                                indexData.categories[cat.key].push({
+                                    id: parsed.code,
+                                    name: parsed.name,
+                                    fileId: file.id
+                                });
+                                totalModules++;
+                            } else {
+                                console.warn(`[Index] 檔案 ${file.name} 解析失敗，未找到 [MOD_ID]`);
+                            }
                         } catch (e) {
-                            console.error(`Error indexing ${file.name}`, e);
+                            console.error(`[Index] 讀取檔案 ${file.name} 失敗`, e);
                         }
                     }
                 }
             }
             
             indexData.meta.total_modules = totalModules;
+            indexData.meta.scanned_categories = scannedCategories;
             
             const jsonStr = JSON.stringify(indexData, null, 2);
             const existingIndexId = await DriveAPI.findId(this.INDEX_FILE_NAME, state.driveIds.root, false);
@@ -439,6 +455,7 @@
                 await DriveAPI.createFile(this.INDEX_FILE_NAME, state.driveIds.root, jsonStr);
             }
             
+            console.log(`[Index] 重建完成！掃描了 ${scannedCategories} 個分類，共索引 ${totalModules} 個模組。`);
             return indexData;
         },
         
@@ -569,14 +586,16 @@
             alert('模組已透過索引快速載入！');
         };
         document.getElementById('rebuild-index-btn').onclick = async () => {
-            if (!confirm('這將掃描所有模組檔案並重建索引，可能需要一些時間。確定要執行嗎？')) return;
+            if (!confirm('這將掃描所有模組資料夾並重建索引，可能需要一些時間。確定要執行嗎？')) return;
             document.getElementById('mask-status').innerText = 'BUILDING_INDEX...';
             document.getElementById('secure-mask').classList.remove('hidden-mask');
-            await ModuleLoader.buildAndSaveIndex();
+            
+            const result = await ModuleLoader.buildAndSaveIndex();
             await ModuleLoader.loadAll(true);
+            
             document.getElementById('secure-mask').classList.add('hidden-mask');
             renderCurrentView();
-            alert('索引已重建，模組庫已更新！');
+            alert(`索引已重建！\n掃描分類: ${result.meta.scanned_categories}\n索引模組: ${result.meta.total_modules}`);
         };
         document.getElementById('edit-config-btn').onclick = () => renderConfigManager();
         document.getElementById('reload-btn').onclick = async () => { 
@@ -1119,9 +1138,7 @@
         };
     }
 
-    // === 修正版：Modules 頁面渲染函數（含搜尋、類別勾選、收起/展開） ===
     function renderModulesView(container) {
-        // 【修正 1】只在第一次載入時初始化可見類別，避免「全不選」被覆蓋
         if (!state.moduleCategoriesInitialized) {
             state.config.categories.forEach(cat => state.moduleVisibleCategories.add(cat.key));
             state.moduleCategoriesInitialized = true;
@@ -1129,9 +1146,7 @@
         
         let html = `
             <div class="p-gutter space-y-4 pb-40">
-                <!-- 頁首控制區 -->
                 <div class="glass-panel p-4 rounded-sm space-y-3">
-                    <!-- 搜尋框 -->
                     <div class="space-y-1">
                         <label class="font-label-caps text-[10px] text-on-surface-variant">🔍 搜尋模組</label>
                         <input type="text" id="module-search" value="${state.moduleSearchQuery}" 
@@ -1139,7 +1154,6 @@
                                placeholder="輸入模組名稱或 ID...">
                     </div>
                     
-                    <!-- 類別勾選區 -->
                     <div class="space-y-2">
                         <div class="flex justify-between items-center">
                             <label class="font-label-caps text-[10px] text-on-surface-variant">📂 顯示類別 (可多選)</label>
@@ -1159,18 +1173,13 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- 模組列表 -->
         `;
         
-        // 遍歷分類，根據勾選狀態過濾
         for (const cat of state.config.categories) {
-            // 檢查是否勾選顯示此類別
             if (!state.moduleVisibleCategories.has(cat.key)) continue;
             
             const mods = state.moduleData[cat.key] || [];
             
-            // 根據搜尋關鍵字過濾
             const filteredMods = mods.filter(m => {
                 if (!state.moduleSearchQuery) return true;
                 const query = state.moduleSearchQuery.toLowerCase();
@@ -1178,7 +1187,6 @@
                        m.code.toLowerCase().includes(query);
             });
             
-            // 檢查是否被收起
             const isCollapsed = state.moduleCollapsedCategories.has(cat.key);
             
             html += `
@@ -1212,16 +1220,12 @@
         html += `</div>`;
         container.innerHTML = html;
         
-        // 綁定事件
-        // 【修正 2】搜尋框：渲染後重新 focus 並恢復游標位置
         const searchInput = document.getElementById('module-search');
         if (searchInput) {
             searchInput.oninput = (e) => {
                 state.moduleSearchQuery = e.target.value;
-                // 記錄當前游標位置
                 const cursorPos = e.target.selectionStart;
                 renderModulesView(container);
-                // 重新 focus 並恢復游標位置
                 const newInput = document.getElementById('module-search');
                 if (newInput) {
                     newInput.focus();
@@ -1230,7 +1234,6 @@
             };
         }
         
-        // 類別勾選
         document.querySelectorAll('.cat-checkbox').forEach(cb => {
             cb.onchange = (e) => {
                 const key = e.target.dataset.key;
@@ -1240,7 +1243,6 @@
                     state.moduleVisibleCategories.delete(key);
                 }
                 renderModulesView(container);
-                // 【修正 2】重新 focus 搜尋框
                 const searchInput = document.getElementById('module-search');
                 if (searchInput) {
                     searchInput.focus();
@@ -1248,11 +1250,9 @@
             };
         });
         
-        // 全選/全不選
         document.getElementById('select-all-cats').onclick = () => {
             state.config.categories.forEach(cat => state.moduleVisibleCategories.add(cat.key));
             renderModulesView(container);
-            // 【修正 2】重新 focus 搜尋框
             const searchInput = document.getElementById('module-search');
             if (searchInput) {
                 searchInput.focus();
@@ -1262,14 +1262,12 @@
         document.getElementById('deselect-all-cats').onclick = () => {
             state.moduleVisibleCategories.clear();
             renderModulesView(container);
-            // 【修正 2】重新 focus 搜尋框
             const searchInput = document.getElementById('module-search');
             if (searchInput) {
                 searchInput.focus();
             }
         };
         
-        // 收起/展開
         document.querySelectorAll('.collapse-btn').forEach(btn => {
             btn.onclick = (e) => {
                 const key = e.currentTarget.dataset.key;
@@ -1279,7 +1277,6 @@
                     state.moduleCollapsedCategories.add(key);
                 }
                 renderModulesView(container);
-                // 【修正 2】重新 focus 搜尋框
                 const searchInput = document.getElementById('module-search');
                 if (searchInput) {
                     searchInput.focus();
@@ -1287,7 +1284,6 @@
             };
         });
         
-        // 模組編輯
         container.querySelectorAll('.module-item').forEach(el => { 
             el.onclick = () => openModuleEditor(el.dataset.id, el.dataset.cat); 
         });
@@ -1338,12 +1334,29 @@
             modal.classList.add('hidden');
             alert('模組已覆寫！');
         };
+        
+        // 【強化 2】另存新模組時，自動建立缺失的資料夾
         document.getElementById('save-as').onclick = async () => {
             const newName = prompt('請輸入新模組名稱 (不含 .txt):'); if (!newName) return;
             const content = document.getElementById('editor-content').value;
             const cat = state.config.categories.find(c => c.key === mod.category);
+            
+            if (!cat) {
+                alert('錯誤：找不到對應的分類配置！');
+                return;
+            }
+            
             let currentParentId = state.driveIds.root;
-            for (const folderName of cat.path) currentParentId = await DriveAPI.findId(folderName, currentParentId, true);
+            for (const folderName of cat.path) {
+                let folderId = await DriveAPI.findId(folderName, currentParentId, true);
+                if (!folderId) {
+                    // 自動創建缺失的資料夾
+                    const res = await DriveAPI.createFolder(folderName, currentParentId);
+                    folderId = res.id;
+                }
+                currentParentId = folderId;
+            }
+            
             await DriveAPI.createFile(`${newName}.txt`, currentParentId, content);
             await ModuleLoader.buildAndSaveIndex();
             await ModuleLoader.loadAll(true);
