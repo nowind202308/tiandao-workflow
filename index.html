@@ -64,13 +64,13 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.010)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.5.011)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.010)</h1>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.5.011)</h1>
     </div>
     <div class="flex items-center gap-3">
         <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -138,7 +138,7 @@
 
     const state = {
         tokenClient: null, gapiInited: false, gisInited: false,
-        driveIds: { root: null },
+        driveIds: { root: null, config: null },
         config: null,
         moduleData: {}, 
         booksFileId: null,
@@ -210,11 +210,14 @@
         document.getElementById('mask-status').innerText = 'CHECKING_CONFIG...';
         const configId = await DriveAPI.findId(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, false);
         if (configId) {
+            state.driveIds.config = configId;
             const content = await DriveAPI.getFileContent(configId);
             state.config = JSON.parse(content);
             state.isInitialized = true;
             document.getElementById('mask-status').innerText = 'LOADING_MODULES...';
             await ModuleLoader.loadAll();
+        } else {
+            alert('未找到 TianDao_Config.json，請先初始化環境。');
         }
 
         document.getElementById('mask-status').innerText = 'SYNCING_BOOKS...';
@@ -330,26 +333,19 @@
         renderCurrentView();
     }
 
-    // ================= 核心升級：模組索引載入引擎 =================
     const ModuleLoader = {
-        INDEX_FILE_NAME: 'Modules_Index.json',
-
         parseModule(content, filename) {
             const codeMatch = content.match(/^\s*\[MOD_ID\]\s*[:：]\s*([A-Za-z0-9_]+)/m);
             const code = codeMatch ? codeMatch[1].trim() : filename.replace(/\.(txt|ahk)$/, '');
-            
             const nameMatch = content.match(/^\s*\[NAME\]\s*[:：]\s*(.+?)\s*$/m);
             const name = nameMatch ? nameMatch[1].trim() : code;
-            
             const extractField = (fieldName) => {
                 const regex = new RegExp(`^\\s*\\[${fieldName}\\]\\s*[:：]\\s*(.*?)(?=\\r?\\n\\s*\\[|\\r?\\n\\s*[A-Z_]+\\s*[:：]|$)`, 'ms');
                 const match = content.match(regex);
                 return match ? match[1].trim() : '';
             };
-            
             return {
-                code,
-                name,
+                code, name,
                 description: extractField('DESCRIPTION') || extractField('EFFECT') || extractField('CORE_CONCEPT'),
                 weight: parseFloat(extractField('WEIGHT')) || 0.5,
                 blockedBy: extractField('BLOCKED_BY') || extractField('BLOCKED_ACTIONS'),
@@ -358,48 +354,9 @@
                 rawContent: content
             };
         },
-
-        // 主入口：決定是讀索引還是重建
         async loadAll() {
             if (!state.config || !state.driveIds.root) return;
-            
-            console.log("正在檢查模組索引...");
-            const indexFileId = await DriveAPI.findId(this.INDEX_FILE_NAME, state.driveIds.root, false);
-            
-            if (indexFileId) {
-                console.log("✅ 發現索引檔，啟動極速載入模式...");
-                const content = await DriveAPI.getFileContent(indexFileId);
-                const indexData = JSON.parse(content);
-                this.buildStateFromIndex(indexData);
-            } else {
-                console.log("⚠️ 未發現索引檔，執行全量掃描...");
-                await this.scanAndBuildIndex();
-            }
-        },
-
-        // 從索引檔重建 state.moduleData
-        buildStateFromIndex(indexData) {
             state.moduleData = {};
-            if (!indexData.categories) return;
-            for (const [category, modules] of Object.entries(indexData.categories)) {
-                state.moduleData[category] = modules.map(mod => ({
-                    code: mod.id,
-                    name: mod.name,
-                    fileId: mod.fileId,
-                    category: category,
-                    rawContent: null // 索引模式不載入全文，節省記憶體
-                }));
-            }
-        },
-
-        // 全量掃描並生成索引檔
-        async scanAndBuildIndex() {
-            state.moduleData = {};
-            let indexData = {
-                meta: { version: "1.0", last_updated: new Date().toISOString() },
-                categories: {}
-            };
-
             for (const cat of state.config.categories) {
                 let currentParentId = state.driveIds.root;
                 let validPath = true;
@@ -409,42 +366,20 @@
                     currentParentId = id;
                 }
                 if (!validPath) continue;
-                
                 const files = await DriveAPI.listFiles(currentParentId);
                 state.moduleData[cat.key] = [];
-                indexData.categories[cat.key] = [];
-
                 for (const file of files) {
                     if (file.name.endsWith('.txt') && file.name !== 'README.txt') {
                         try {
                             const content = await DriveAPI.getFileContent(file.id);
                             const parsed = this.parseModule(content, file.name);
-                            
                             parsed.fileId = file.id;
                             parsed.category = cat.key;
                             state.moduleData[cat.key].push(parsed);
-
-                            indexData.categories[cat.key].push({
-                                id: parsed.code,
-                                name: parsed.name,
-                                fileId: file.id
-                            });
                         } catch (e) { console.error(`Error loading ${file.name}`, e); }
                     }
                 }
             }
-
-            console.log("🚀 掃描完畢，正在生成並上傳索引檔至 GDrive...");
-            const jsonStr = JSON.stringify(indexData, null, 2);
-            
-            // 檢查是否已存在，存在則更新，不存在則創建
-            const existingIndexId = await DriveAPI.findId(this.INDEX_FILE_NAME, state.driveIds.root, false);
-            if (existingIndexId) {
-                await DriveAPI.updateFile(existingIndexId, jsonStr);
-            } else {
-                await DriveAPI.createFile(this.INDEX_FILE_NAME, state.driveIds.root, jsonStr);
-            }
-            console.log("✅ 索引檔 Modules_Index.json 已建立/更新！");
         }
     };
 
@@ -514,11 +449,8 @@
                     <div class="flex justify-between items-center"><span class="font-data-md text-sm">Total Books:</span><span class="font-data-md text-sm text-primary-fixed-dim">${state.books.length}</span></div>
                 </div>
                 <button id="init-btn" class="w-full bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow"><span class="material-symbols-outlined">rocket_launch</span> 一鍵初始化專案環境</button>
-                
-                <div class="grid grid-cols-2 gap-2">
-                    <button id="load-fast-btn" class="bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-xs border border-outline-variant flex items-center justify-center gap-1 hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined text-[16px]">bolt</span> 快速載入 (讀取索引)</button>
-                    <button id="rebuild-index-btn" class="bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-xs border border-outline-variant flex items-center justify-center gap-1 hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined text-[16px]">build</span> 重建索引 (全量掃描)</button>
-                </div>
+                <button id="edit-config-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2 hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined">settings</span> ⚙️ 編輯組態 (Config Manager)</button>
+                <button id="reload-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant"> 重新載入模組庫</button>
             </div>
         `;
         document.getElementById('init-btn').onclick = async () => {
@@ -527,24 +459,133 @@
             await initializeEnvironment();
             document.getElementById('secure-mask').classList.add('hidden-mask');
         };
+        document.getElementById('edit-config-btn').onclick = () => renderConfigManager();
+        document.getElementById('reload-btn').onclick = async () => { await ModuleLoader.loadAll(); renderCurrentView(); };
+    }
+
+    function renderConfigManager() {
+        const modal = document.getElementById('modal-container');
+        modal.classList.remove('hidden');
         
-        document.getElementById('load-fast-btn').onclick = async () => {
-            document.getElementById('mask-status').innerText = 'LOADING_INDEX...';
+        let categoriesHtml = state.config.categories.map((cat, index) => `
+            <div class="flex gap-2 items-center bg-surface-container-high p-2 rounded-sm border border-outline-variant">
+                <input type="text" value="${cat.key}" class="cat-key w-24 bg-surface border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs" data-idx="${index}" placeholder="Key">
+                <input type="text" value="${cat.label}" class="cat-label flex-1 bg-surface border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs" data-idx="${index}" placeholder="Label">
+                <input type="text" value="${cat.path.join(', ')}" class="cat-path flex-[2] bg-surface border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs" data-idx="${index}" placeholder="Path (comma separated)">
+                <button class="del-cat-btn text-error hover:bg-error-container/20 p-1 rounded" data-idx="${index}"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+            </div>
+        `).join('');
+
+        let promptsHtml = Object.entries(state.config.prompts || {}).map(([key, value]) => `
+            <div class="space-y-1">
+                <label class="font-label-caps text-[10px] text-on-surface-variant">${key}</label>
+                <textarea class="prompt-val w-full bg-surface border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs min-h-[60px]" data-key="${key}">${value}</textarea>
+            </div>
+        `).join('');
+
+        modal.innerHTML = `
+            <div class="modal-overlay">
+                <div class="bg-surface border border-outline-variant rounded-sm w-full max-w-4xl h-[90vh] flex flex-col">
+                    <div class="p-4 border-b border-outline-variant flex justify-between items-center">
+                        <div class="font-label-caps text-xs text-primary-fixed-dim">組態管理器 (Config Manager)</div>
+                        <button id="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-4 space-y-6">
+                        <div class="space-y-2">
+                            <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">基本資訊</h3>
+                            <div class="flex gap-4">
+                                <div class="flex-1 space-y-1">
+                                    <label class="font-label-caps text-[10px] text-on-surface-variant">版本號</label>
+                                    <input type="text" id="cfg-version" value="${state.config.version}" class="w-full bg-surface border border-outline text-on-surface px-2 py-1 rounded-sm font-data-md text-xs">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">模組分類管理</h3>
+                                <button id="add-cat-btn" class="bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm font-label-caps text-[10px] flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">add</span> 新增分類</button>
+                            </div>
+                            <div id="categories-list" class="space-y-2">
+                                ${categoriesHtml}
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">系統規則 (Prompts)</h3>
+                            <div class="space-y-3">
+                                ${promptsHtml}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4 border-t border-outline-variant flex gap-2">
+                        <button id="save-config-btn" class="flex-1 bg-primary-container text-on-primary-fixed py-2 rounded-sm font-label-caps text-xs flex items-center justify-center gap-1"><span class="material-symbols-outlined text-[16px]">save</span> 儲存並同步結構</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
+        
+        document.getElementById('add-cat-btn').onclick = () => {
+            state.config.categories.push({ key: 'New_Key', label: '新分類', path: ['00_GLOBAL_CORE', '30_MODULES', '99_NEW'] });
+            renderConfigManager(); // Re-render to show new row
+        };
+
+        document.querySelectorAll('.del-cat-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                const idx = parseInt(e.currentTarget.dataset.idx);
+                state.config.categories.splice(idx, 1);
+                renderConfigManager();
+            };
+        });
+
+        document.getElementById('save-config-btn').onclick = async () => {
+            // 1. 收集基本資訊
+            state.config.version = document.getElementById('cfg-version').value;
+            
+            // 2. 收集分類資訊
+            document.querySelectorAll('.cat-key').forEach((inp, idx) => {
+                if (state.config.categories[idx]) {
+                    state.config.categories[idx].key = inp.value.trim();
+                    state.config.categories[idx].label = document.querySelectorAll('.cat-label')[idx].value.trim();
+                    const pathStr = document.querySelectorAll('.cat-path')[idx].value;
+                    state.config.categories[idx].path = pathStr.split(',').map(p => p.trim()).filter(p => p);
+                }
+            });
+
+            // 3. 收集 Prompts
+            document.querySelectorAll('.prompt-val').forEach(textarea => {
+                const key = textarea.dataset.key;
+                state.config.prompts[key] = textarea.value;
+            });
+
+            // 4. 儲存 JSON 到 GDrive
+            document.getElementById('mask-status').innerText = 'SAVING CONFIG...';
             document.getElementById('secure-mask').classList.remove('hidden-mask');
+            modal.classList.add('hidden');
+            
+            await DriveAPI.updateFile(state.driveIds.config, JSON.stringify(state.config, null, 2));
+            
+            // 5. 結構同步 (Structure Sync) - 自動創建缺失的資料夾
+            document.getElementById('mask-status').innerText = 'SYNCING STRUCTURE...';
+            for (const cat of state.config.categories) {
+                let currentId = state.driveIds.root;
+                for (const folderName of cat.path) {
+                    let folderId = await DriveAPI.findId(folderName, currentId, true);
+                    if (!folderId) {
+                        const res = await DriveAPI.createFolder(folderName, currentId);
+                        folderId = res.id;
+                    }
+                    currentId = folderId;
+                }
+            }
+
+            // 6. 重新載入
             await ModuleLoader.loadAll();
             document.getElementById('secure-mask').classList.add('hidden-mask');
             renderCurrentView();
-            alert('✅ 模組極速載入完成！');
-        };
-
-        document.getElementById('rebuild-index-btn').onclick = async () => {
-            if (!confirm('這將掃描所有模組檔案並重新生成索引，可能需要一些時間。確定要執行嗎？')) return;
-            document.getElementById('mask-status').innerText = 'SCANNING_MODULES...';
-            document.getElementById('secure-mask').classList.remove('hidden-mask');
-            await ModuleLoader.scanAndBuildIndex();
-            document.getElementById('secure-mask').classList.add('hidden-mask');
-            renderCurrentView();
-            alert('✅ 索引重建完成！下次載入將瞬間完成。');
+            alert('組態已儲存，結構已同步，模組庫已更新！');
         };
     }
 
@@ -569,7 +610,8 @@
                     state.config = JSON.parse(event.target.result);
                     document.getElementById('mask-status').innerText = 'UPLOADING_CONFIG...';
                     document.getElementById('secure-mask').classList.remove('hidden-mask');
-                    await DriveAPI.createFile(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, JSON.stringify(state.config, null, 2));
+                    const res = await DriveAPI.createFile(TDF_CONFIG.CONFIG_FILE, state.driveIds.root, JSON.stringify(state.config, null, 2));
+                    state.driveIds.config = res.id;
                     await initializeEnvironment();
                     document.getElementById('secure-mask').classList.add('hidden-mask');
                 } catch (err) { alert('配置檔解析失敗：' + err.message); }
@@ -767,7 +809,7 @@
                             </div>
                         `}).join('')}
                     </div>
-                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-8">💾 儲存${isActor ? '演員' : '場景'}池</button>
+                    <button id="save-list-btn" class="w-full bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant mb-8"> 儲存${isActor ? '演員' : '場景'}池</button>
                 </div>
             `;
 
@@ -988,7 +1030,6 @@
         const mod = state.moduleData[catKey].find(m => m.code === code);
         if (!mod) return;
         
-        // 如果是極速載入模式，rawContent 為 null，需要即時從 GDrive 抓取
         const loadAndEdit = async () => {
             if (!mod.rawContent) {
                 document.getElementById('mask-status').innerText = 'FETCHING_MODULE...';
@@ -1037,14 +1078,10 @@
             let currentParentId = state.driveIds.root;
             for (const folderName of cat.path) currentParentId = await DriveAPI.findId(folderName, currentParentId, true);
             await DriveAPI.createFile(`${newName}.txt`, currentParentId, content);
-            
-            // 儲存後提示重建索引
-            if(confirm('新模組已儲存！是否立即重建索引以使其生效？')) {
-                await ModuleLoader.scanAndBuildIndex();
-            }
+            await ModuleLoader.loadAll();
             modal.classList.add('hidden');
             renderCurrentView();
-            alert('操作完成！');
+            alert('新模組已儲存！');
         };
     }
 
@@ -1156,7 +1193,7 @@
                 <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2 mt-6">大綱預覽與導出</h2>
                 <div class="glass-panel p-3 rounded-sm"><pre id="outline-preview" class="font-data-md text-[10px] text-on-surface-variant whitespace-pre-wrap max-h-[300px] overflow-y-auto"></pre></div>
                 <div class="grid grid-cols-2 gap-2">
-                    <button id="refresh-preview" class="bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">👁️ 更新預覽</button>
+                    <button id="refresh-preview" class="bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">️ 更新預覽</button>
                     <button id="copy-outline" class="bg-primary-container text-on-primary-fixed py-2 rounded-sm font-label-caps text-xs flex items-center justify-center gap-1 cyan-glow"><span class="material-symbols-outlined text-[16px]">content_copy</span> 複製全部大綱</button>
                 </div>
             </div>
