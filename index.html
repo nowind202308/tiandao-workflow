@@ -45,16 +45,38 @@
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            padding: 2px 6px;
+            padding: 2px 8px;
             border-radius: 4px;
             font-size: 10px;
             font-weight: 600;
             margin-left: 8px;
+            font-family: 'JetBrains Mono', monospace;
         }
-        .creative-space-margin.high { background: #10b9811a; color: #10b981; }
-        .creative-space-margin.medium { background: #f59e0b1a; color: #f59e0b; }
-        .creative-space-margin.low { background: #ef44441a; color: #ef4444; }
+        .creative-space-margin.high { background: #10b9811a; color: #10b981; border: 1px solid #10b98133; }
+        .creative-space-margin.medium { background: #f59e0b1a; color: #f59e0b; border: 1px solid #f59e0b33; }
+        .creative-space-margin.low { background: #ef44441a; color: #ef4444; border: 1px solid #ef444433; }
         .creative-space-margin .emoji { font-size: 12px; margin-right: 2px; }
+        
+        /* 模組表列樣式 */
+        .module-row-card {
+            background: rgba(35, 43, 44, 0.6);
+            border: 1px solid rgba(58, 73, 75, 0.5);
+            border-left: 3px solid #00dbe7;
+            transition: all 0.2s ease;
+        }
+        .module-row-card:hover {
+            background: rgba(46, 54, 55, 0.8);
+            border-left-color: #00f2ff;
+        }
+        .module-row-card .row-index {
+            background: #00dbe720;
+            color: #00dbe7;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-weight: 700;
+        }
     </style>
 
     <script id="tailwind-config">
@@ -85,13 +107,13 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.6.02)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.6.03)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.6.02)</h1>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.6.03)</h1>
     </div>
     <div class="flex items-center gap-3">
         <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -542,7 +564,6 @@
         }
         await DriveAPI.updateFile(fileId, content);
         
-        // 更新 state
         for (const catKey in state.moduleData) {
             const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
             if (mod) {
@@ -1453,7 +1474,6 @@
             
             await DriveAPI.updateFile(fileId, content);
             
-            // 更新 state
             for (const catKey in state.moduleData) {
                 const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
                 if (mod) {
@@ -1558,7 +1578,6 @@
 
     // 標籤管理系統頁面
     function renderTagsView(container) {
-        // 收集所有標籤及其數量
         const tagMap = {};
         for (const catKey in state.moduleData) {
             for (const mod of state.moduleData[catKey]) {
@@ -1585,7 +1604,6 @@
             <div class="p-gutter space-y-4 pb-40">
                 <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">標籤管理系統</h2>
                 
-                <!-- 標籤搜尋 -->
                 <div class="glass-panel p-4 rounded-sm">
                     <div class="space-y-1">
                         <label class="font-label-caps text-[10px] text-on-surface-variant">🔍 搜尋標籤</label>
@@ -1595,7 +1613,6 @@
                     </div>
                 </div>
                 
-                <!-- 標籤雲 -->
                 <div class="glass-panel p-4 rounded-sm">
                     <h3 class="font-label-caps text-xs text-on-surface-variant mb-2">所有標籤 (${tags.length})</h3>
                     <div class="flex flex-wrap gap-2">
@@ -1607,7 +1624,6 @@
                     </div>
                 </div>
                 
-                <!-- 標籤篩選結果 -->
                 ${state.tagFilter ? `
                     <div class="glass-panel p-4 rounded-sm">
                         <div class="flex justify-between items-center mb-2">
@@ -1628,7 +1644,6 @@
                     </div>
                 ` : ''}
                 
-                <!-- 標籤管理 -->
                 <div class="glass-panel p-4 rounded-sm">
                     <h3 class="font-label-caps text-xs text-on-surface-variant mb-2">標籤操作說明</h3>
                     <div class="text-xs text-on-surface-variant space-y-1">
@@ -1642,7 +1657,6 @@
         
         container.innerHTML = html;
         
-        // 標籤搜尋事件
         const tagSearchInput = document.getElementById('tag-search');
         if (tagSearchInput) {
             tagSearchInput.oninput = (e) => {
@@ -1657,7 +1671,6 @@
             };
         }
         
-        // 標籤雲點擊事件
         container.querySelectorAll('.tag-cloud-btn').forEach(btn => {
             btn.onclick = () => {
                 const tag = btn.dataset.tag;
@@ -1670,7 +1683,6 @@
             };
         });
         
-        // 清除篩選
         const clearFilterBtn = document.getElementById('clear-tag-filter');
         if (clearFilterBtn) {
             clearFilterBtn.onclick = () => {
@@ -1679,7 +1691,6 @@
             };
         }
         
-        // 移除標籤按鈕
         container.querySelectorAll('.remove-tag-from-module-btn').forEach(btn => {
             btn.onclick = async () => {
                 const fileId = btn.dataset.fileid;
@@ -1695,21 +1706,198 @@
         });
     }
 
-    // 計算創作空間裕度
+    // ==========================================
+    // 【新增】OUTLINE 角色模組表列式設定相關函數
+    // ==========================================
+    
+    /**
+     * 收集所有模組按類別分組
+     * 回傳格式：{ categoryKey: [{code, name, category}], ... }
+     */
+    function getAllModulesByCategory() {
+        const result = {};
+        for (const catKey in state.moduleData) {
+            result[catKey] = state.moduleData[catKey].map(m => ({
+                code: m.code,
+                name: m.name,
+                category: catKey
+            }));
+        }
+        return result;
+    }
+    
+    /**
+     * 取得類別的顯示標籤
+     */
+    function getCategoryLabel(catKey) {
+        if (!catKey) return '(未分類)';
+        const catConfig = state.config.categories.find(c => c.key === catKey);
+        return catConfig ? catConfig.label : catKey;
+    }
+    
+    /**
+     * 取得模組的顯示名稱
+     */
+    function getModuleName(moduleCode) {
+        if (!moduleCode) return '(未選擇)';
+        for (const catKey in state.moduleData) {
+            const mod = state.moduleData[catKey].find(m => m.code === moduleCode);
+            if (mod) return mod.name;
+        }
+        return moduleCode;
+    }
+    
+    /**
+     * 確保角色資料結構為新格式（相容性處理）
+     * 將舊的 settings 格式轉換為 moduleRows 格式
+     */
+    function ensureCharDataFormat(charData) {
+        if (!charData) return { checked: false, moduleRows: [] };
+        
+        // 如果已有 moduleRows，直接返回
+        if (Array.isArray(charData.moduleRows)) {
+            return charData;
+        }
+        
+        // 相容性處理：將舊的 settings 格式轉換為 moduleRows
+        charData.moduleRows = [];
+        if (charData.settings && typeof charData.settings === 'object') {
+            for (const key in charData.settings) {
+                const s = charData.settings[key];
+                if (s && (s.name || s.must || s.forbid)) {
+                    charData.moduleRows.push({
+                        id: 'row_legacy_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        category: key,
+                        moduleCode: s.name || '',
+                        mustExecute: s.must || '',
+                        forbid: s.forbid || '',
+                        reason: ''
+                    });
+                }
+            }
+        }
+        // 清除舊的 settings 結構
+        delete charData.settings;
+        
+        return charData;
+    }
+    
+    /**
+     * 渲染單個模組表列
+     */
+    function renderModuleRow(row, rowIdx, charId) {
+        const allModulesByCategory = getAllModulesByCategory();
+        
+        // 類別下拉選單選項
+        const categoryOptions = Object.keys(allModulesByCategory).map(catKey => {
+            const label = getCategoryLabel(catKey);
+            const count = allModulesByCategory[catKey].length;
+            return `<option value="${catKey}" ${row.category === catKey ? 'selected' : ''}>${label} (${count})</option>`;
+        }).join('');
+        
+        // 根據所選類別篩選模組
+        const modsInCategory = allModulesByCategory[row.category] || [];
+        const moduleOptions = modsInCategory.map(m => 
+            `<option value="${m.code}" ${row.moduleCode === m.code ? 'selected' : ''}>${m.name} [${m.code}]</option>`
+        ).join('');
+        
+        return `
+            <div class="module-row-card p-3 rounded-sm space-y-2 relative group">
+                <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center gap-2">
+                        <span class="row-index">#${rowIdx + 1}</span>
+                        <span class="font-label-caps text-[9px] text-on-surface-variant">模組表列</span>
+                    </div>
+                    <button class="del-module-row-btn text-error hover:bg-error-container/20 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity" data-char="${charId}" data-rowidx="${rowIdx}" title="刪除此表列">
+                        <span class="material-symbols-outlined text-[16px]">delete</span>
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div class="space-y-1">
+                        <label class="font-label-caps text-[8px] text-on-surface-variant flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[10px]">category</span> 模組類別
+                        </label>
+                        <select class="row-category-select w-full bg-surface border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px]" data-char="${charId}" data-rowidx="${rowIdx}">
+                            <option value="">(請選擇類別)</option>
+                            ${categoryOptions}
+                        </select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="font-label-caps text-[8px] text-on-surface-variant flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[10px]">extension</span> 選擇模組
+                        </label>
+                        <select class="row-module-select w-full bg-surface border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px]" data-char="${charId}" data-rowidx="${rowIdx}" ${!row.category ? 'disabled' : ''}>
+                            <option value="">${!row.category ? '(請先選擇類別)' : '(選擇模組)'}</option>
+                            ${moduleOptions}
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div class="space-y-1">
+                        <label class="font-label-caps text-[8px] text-green-400 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[10px]">check_circle</span> MUST EXECUTE (強制執行)
+                        </label>
+                        <input type="text" class="row-must-input w-full bg-surface border border-green-900/30 text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px]" data-char="${charId}" data-rowidx="${rowIdx}" value="${(row.mustExecute || '').replace(/"/g, '&quot;')}" placeholder="例：冷酷說話、壓制怒火、聽聲辨位">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="font-label-caps text-[8px] text-red-400 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[10px]">block</span> FORBID (禁止使用)
+                        </label>
+                        <input type="text" class="row-forbid-input w-full bg-surface border border-red-900/30 text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px]" data-char="${charId}" data-rowidx="${rowIdx}" value="${(row.forbid || '').replace(/"/g, '&quot;')}" placeholder="例：溫柔語氣、直視對方、精準射擊">
+                    </div>
+                </div>
+                
+                <div class="space-y-1">
+                    <label class="font-label-caps text-[8px] text-primary-fixed-dim flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[10px]">psychology</span> 模組使用原因 (Reason/Context) - AI 生成提示方向
+                    </label>
+                    <textarea class="row-reason-input w-full bg-surface border border-primary-container/30 text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px] min-h-[50px]" data-char="${charId}" data-rowidx="${rowIdx}" placeholder="例：葉辰右眼剛受傷失明，必須用冷酷和不耐煩來掩飾視覺缺陷，防止眼前的敵人察覺弱點並發動突襲。此原因將作為 AI 生成潛台詞與微表情的核心動機。">${row.reason || ''}</textarea>
+                </div>
+            </div>
+        `;
+    }
+    
+    /**
+     * 計算創作空間裕度 (Creative Space Margin)
+     * 根據 moduleRows 的數量和約束條件計算
+     */
     function calculateCreativeSpaceMargin(charData) {
-        if (!charData || !charData.modules) return '<span class="creative-space-margin medium"><span class="emoji">🟡</span> 60%</span>';
+        if (!charData) {
+            return '<span class="creative-space-margin high"><span class="emoji">🟢</span> 100%</span>';
+        }
         
-        const moduleCount = charData.modules.length;
-        const strictConstraints = charData.modules.filter(m => m.mustExecute || m.forbid).length;
+        charData = ensureCharDataFormat(charData);
+        const rows = charData.moduleRows || [];
         
-        let percentage = 80 - (moduleCount * 10) - (strictConstraints * 5);
-        percentage = Math.max(20, Math.min(80, percentage));
+        // 計算有效模組數量（有選擇模組的表列）
+        const moduleCount = rows.filter(r => r.moduleCode).length;
+        // 計算嚴格約束數量（有 MUST EXECUTE 或 FORBID 的表列）
+        const strictConstraints = rows.filter(r => r.mustExecute || r.forbid).length;
+        
+        // 計算公式：
+        // 基礎 100%
+        // 每個模組 -10%
+        // 每個嚴格約束 -5%
+        let percentage = 100 - (moduleCount * 10) - (strictConstraints * 5);
+        percentage = Math.max(20, Math.min(100, percentage));
         
         let statusClass = 'medium';
-        if (percentage >= 70) statusClass = 'high';
-        else if (percentage <= 40) statusClass = 'low';
+        let emoji = '🟡';
+        let statusText = '平衡';
         
-        return `<span class="creative-space-margin ${statusClass}"><span class="emoji">${percentage >= 70 ? '🟢' : percentage <= 40 ? '🔴' : '🟡'}</span> ${percentage}%</span>`;
+        if (percentage >= 70) {
+            statusClass = 'high';
+            emoji = '🟢';
+            statusText = '高度自由';
+        } else if (percentage <= 40) {
+            statusClass = 'low';
+            emoji = '🔴';
+            statusText = '嚴格約束';
+        }
+        
+        return `<span class="creative-space-margin ${statusClass}" title="創作空間裕度：${statusText}\n模組數：${moduleCount}\n約束數：${strictConstraints}"><span class="emoji">${emoji}</span> ${percentage}%</span>`;
     }
 
     function renderOutlineView(container) {
@@ -1755,7 +1943,6 @@
         
         const scenes = book ? book.scenes : [];
         const chars = book ? book.actors : [];
-        const modTypes = state.config.outlineModTypes || [];
 
         let html = '';
         if (state.currentTab === 0) {
@@ -1771,20 +1958,53 @@
             </div>
             <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">HOOK承接詞 (Transition Hook)</label><input type="text" id="hook-input" value="${tabData.hook || ''}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm" placeholder="例：然而，他並未察覺暗處的視線..."></div>
             <div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">動作/劇情描述</label><textarea id="action-text" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]">${tabData.actionText}</textarea></div>
-            <div class="space-y-2"><label class="font-label-caps text-[10px] text-on-surface-variant">出場人物 (Instances)</label>
-                ${chars.map(c => `
-                    <div class="glass-panel p-2 rounded-sm space-y-2">
-                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="char-check rounded text-primary-container" data-code="${c.id}" ${tabData.characters[c.id]?.checked ? 'checked' : ''}><span class="font-data-md text-sm">${c.name} ${c.oopCode ? '['+c.oopCode+']' : ''}</span> ${calculateCreativeSpaceMargin(tabData.characters[c.id])}</label>
-                        <div class="char-settings ${tabData.characters[c.id]?.checked ? '' : 'hidden'} space-y-2 pl-6 border-l border-outline-variant">
-                            ${modTypes.map(mt => {
-                                const mods = state.moduleData[mt.key] || [];
-                                const charSetting = tabData.characters[c.id]?.settings?.[mt.key] || {};
-                                return `<div class="grid grid-cols-3 gap-1 items-center"><span class="font-label-caps text-[8px] text-on-surface-variant">${mt.label}</span><select class="mod-select col-span-2 bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}"><option value="">(無)</option>${mods.map(m => `<option value="${m.code}" ${charSetting.name === m.code ? 'selected' : ''}>${m.name}</option>`).join('')}</select></div><div class="grid grid-cols-2 gap-1"><input type="text" placeholder="Must Execute" class="must-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}" value="${charSetting.must || ''}"><input type="text" placeholder="Forbid" class="forbid-input bg-surface-container-high border border-outline text-on-surface px-1 py-1 rounded-sm font-data-md text-[10px]" data-char="${c.id}" data-type="${mt.key}" value="${charSetting.forbid || ''}"></div>`;
-                            }).join('')}
+            
+            <!-- 出場人物區塊 -->
+            <div class="space-y-2">
+                <div class="flex justify-between items-center border-b border-outline-variant pb-2">
+                    <label class="font-label-caps text-[10px] text-on-surface-variant">出場人物 (Instances)</label>
+                    <span class="font-label-caps text-[8px] text-primary-fixed-dim">OUTLINE 表列設定優先級 > 全局 OOP 模組</span>
+                </div>
+                ${chars.map(c => {
+                    // 確保角色資料格式為新格式
+                    if (!tabData.characters[c.id]) {
+                        tabData.characters[c.id] = { checked: false, moduleRows: [] };
+                    } else {
+                        tabData.characters[c.id] = ensureCharDataFormat(tabData.characters[c.id]);
+                    }
+                    const charData = tabData.characters[c.id];
+                    
+                    return `
+                    <div class="glass-panel p-3 rounded-sm space-y-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" class="char-check rounded text-primary-container" data-code="${c.id}" ${charData.checked ? 'checked' : ''}>
+                            <span class="font-data-md text-sm">${c.name} ${c.oopCode ? '['+c.oopCode+']' : ''}</span>
+                            ${calculateCreativeSpaceMargin(charData)}
+                        </label>
+                        <div class="char-settings ${charData.checked ? '' : 'hidden'} space-y-3 pl-4 border-l-2 border-primary-container/30">
+                            <div class="flex justify-between items-center">
+                                <span class="font-label-caps text-[10px] text-primary-fixed-dim flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[14px]">table_rows</span>
+                                    模組表列設定 (共 ${charData.moduleRows.length} 列)
+                                </span>
+                                <button class="add-module-row-btn bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:bg-primary-container/30 transition-colors" data-char="${c.id}">
+                                    <span class="material-symbols-outlined text-[14px]">add</span> 新增表列
+                                </button>
+                            </div>
+                            
+                            <div class="module-rows-container space-y-2" data-char="${c.id}">
+                                ${charData.moduleRows.length === 0 ? `
+                                    <div class="text-xs text-on-surface-variant/50 p-3 border border-dashed border-outline-variant rounded-sm text-center">
+                                        尚未設定模組表列，請點擊「新增表列」按鈕。<br>
+                                        <span class="text-[9px]">每個表列可設定：模組類別、選擇模組、MUST EXECUTE、FORBID、模組使用原因</span>
+                                    </div>
+                                ` : charData.moduleRows.map((row, rowIdx) => renderModuleRow(row, rowIdx, c.id)).join('')}
+                            </div>
                         </div>
                     </div>
-                `).join('')}
+                `}).join('')}
             </div>
+            
             <div class="pt-2 border-t border-outline-variant"><label class="font-label-caps text-[10px] text-on-surface-variant">段落設定繼承</label><div class="flex gap-2 mt-1"><select id="inherit-src" class="flex-1 bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-xs">${["起", "承", "轉", "合"].map((name, i) => i !== state.currentTab ? `<option value="${i}">從【${name}】帶入</option>` : '').join('')}</select><button id="inherit-btn" class="bg-surface-container-high text-on-surface px-3 py-1.5 rounded-sm font-label-caps text-xs border border-outline-variant">📥 帶入</button></div></div>
         `;
         tabContent.innerHTML = html;
@@ -1794,18 +2014,137 @@
         document.getElementById('hook-input').oninput = (e) => tabData.hook = e.target.value;
         document.getElementById('action-text').oninput = (e) => tabData.actionText = e.target.value;
 
-        tabContent.querySelectorAll('.char-check').forEach(cb => { cb.onchange = (e) => { const code = e.target.dataset.code; if (!tabData.characters[code]) tabData.characters[code] = { checked: false, settings: {} }; tabData.characters[code].checked = e.target.checked; renderTabContent(); }; });
-        tabContent.querySelectorAll('.mod-select').forEach(sel => { sel.onchange = (e) => { const charCode = e.target.dataset.char; const type = e.target.dataset.type; if (!tabData.characters[charCode].settings[type]) tabData.characters[charCode].settings[type] = {}; tabData.characters[charCode].settings[type].name = e.target.value; }; });
-        tabContent.querySelectorAll('.must-input').forEach(inp => { inp.oninput = (e) => { const charCode = e.target.dataset.char; const type = e.target.dataset.type; if (!tabData.characters[charCode].settings[type]) tabData.characters[charCode].settings[type] = {}; tabData.characters[charCode].settings[type].must = e.target.value; }; });
-        tabContent.querySelectorAll('.forbid-input').forEach(inp => { inp.oninput = (e) => { const charCode = e.target.dataset.char; const type = e.target.dataset.type; if (!tabData.characters[charCode].settings[type]) tabData.characters[charCode].settings[type] = {}; tabData.characters[charCode].settings[type].forbid = e.target.value; }; });
+        // 角色勾選事件
+        tabContent.querySelectorAll('.char-check').forEach(cb => { 
+            cb.onchange = (e) => { 
+                const code = e.target.dataset.code; 
+                if (!tabData.characters[code]) {
+                    tabData.characters[code] = { checked: false, moduleRows: [] };
+                }
+                tabData.characters[code] = ensureCharDataFormat(tabData.characters[code]);
+                tabData.characters[code].checked = e.target.checked; 
+                renderTabContent(); 
+            }; 
+        });
 
+        // 【新增】新增表列按鈕事件
+        tabContent.querySelectorAll('.add-module-row-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                const charId = e.currentTarget.dataset.char;
+                if (!tabData.characters[charId]) {
+                    tabData.characters[charId] = { checked: true, moduleRows: [] };
+                }
+                tabData.characters[charId] = ensureCharDataFormat(tabData.characters[charId]);
+                
+                tabData.characters[charId].moduleRows.push({
+                    id: 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    category: '',
+                    moduleCode: '',
+                    mustExecute: '',
+                    forbid: '',
+                    reason: ''
+                });
+                renderTabContent();
+            };
+        });
+
+        // 【新增】刪除表列按鈕事件
+        tabContent.querySelectorAll('.del-module-row-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                const charId = e.currentTarget.dataset.char;
+                const rowIdx = parseInt(e.currentTarget.dataset.rowidx);
+                if (confirm(`確定要刪除此模組表列 (#${rowIdx + 1}) 嗎？`)) {
+                    tabData.characters[charId].moduleRows.splice(rowIdx, 1);
+                    renderTabContent();
+                }
+            };
+        });
+
+        // 【新增】類別下拉選單事件
+        tabContent.querySelectorAll('.row-category-select').forEach(sel => {
+            sel.onchange = (e) => {
+                const charId = e.target.dataset.char;
+                const rowIdx = parseInt(e.target.dataset.rowidx);
+                tabData.characters[charId].moduleRows[rowIdx].category = e.target.value;
+                // 重置模組選擇（因為類別改變後，模組列表會改變）
+                tabData.characters[charId].moduleRows[rowIdx].moduleCode = '';
+                renderTabContent();
+            };
+        });
+
+        // 【新增】模組下拉選單事件
+        tabContent.querySelectorAll('.row-module-select').forEach(sel => {
+            sel.onchange = (e) => {
+                const charId = e.target.dataset.char;
+                const rowIdx = parseInt(e.target.dataset.rowidx);
+                tabData.characters[charId].moduleRows[rowIdx].moduleCode = e.target.value;
+                // 更新裕度顯示（不重新渲染整個頁面，只更新裕度指示器）
+                updateCreativeSpaceMarginDisplay(charId);
+            };
+        });
+
+        // 【新增】MUST EXECUTE 輸入事件
+        tabContent.querySelectorAll('.row-must-input').forEach(inp => {
+            inp.oninput = (e) => {
+                const charId = e.target.dataset.char;
+                const rowIdx = parseInt(e.target.dataset.rowidx);
+                tabData.characters[charId].moduleRows[rowIdx].mustExecute = e.target.value;
+                updateCreativeSpaceMarginDisplay(charId);
+            };
+        });
+
+        // 【新增】FORBID 輸入事件
+        tabContent.querySelectorAll('.row-forbid-input').forEach(inp => {
+            inp.oninput = (e) => {
+                const charId = e.target.dataset.char;
+                const rowIdx = parseInt(e.target.dataset.rowidx);
+                tabData.characters[charId].moduleRows[rowIdx].forbid = e.target.value;
+                updateCreativeSpaceMarginDisplay(charId);
+            };
+        });
+
+        // 【新增】Reason 輸入事件
+        tabContent.querySelectorAll('.row-reason-input').forEach(ta => {
+            ta.oninput = (e) => {
+                const charId = e.target.dataset.char;
+                const rowIdx = parseInt(e.target.dataset.rowidx);
+                tabData.characters[charId].moduleRows[rowIdx].reason = e.target.value;
+            };
+        });
+
+        // 段落繼承按鈕
         document.getElementById('inherit-btn').onclick = () => {
             const srcIdx = parseInt(document.getElementById('inherit-src').value);
             const srcTab = state.outlineData.tabs[srcIdx];
-            tabData.scene = srcTab.scene; tabData.hook = srcTab.hook; tabData.actionText = srcTab.actionText;
+            tabData.scene = srcTab.scene; 
+            tabData.hook = srcTab.hook; 
+            tabData.actionText = srcTab.actionText;
+            // 深拷貝角色資料
             tabData.characters = JSON.parse(JSON.stringify(srcTab.characters));
             renderTabContent();
         };
+    }
+    
+    /**
+     * 更新創作空間裕度顯示（不重新渲染整個頁面）
+     */
+    function updateCreativeSpaceMarginDisplay(charId) {
+        const tabData = state.outlineData.tabs[state.currentTab];
+        const charData = tabData.characters[charId];
+        if (!charData) return;
+        
+        // 找到對應的裕度指示器並更新
+        const tabContent = document.getElementById('tab-content');
+        const charCheckboxes = tabContent.querySelectorAll('.char-check');
+        charCheckboxes.forEach(cb => {
+            if (cb.dataset.code === charId) {
+                const label = cb.closest('label');
+                const existingMargin = label.querySelector('.creative-space-margin');
+                if (existingMargin) {
+                    existingMargin.outerHTML = calculateCreativeSpaceMargin(charData);
+                }
+            }
+        });
     }
 
     function renderTriggersView(container) {
@@ -1850,14 +2189,15 @@
             outline += "- 出場人物:\n";
             let hasChars = false;
             for (const charId in tab.characters) {
-                const charData = tab.characters[charId];
+                const charData = ensureCharDataFormat(tab.characters[charId]);
                 const charObj = book ? book.actors.find(a => a.id === charId) : null;
                 if (charData.checked && charObj) {
                     hasChars = true;
                     outline += `  - [${charObj.name}] ${charObj.oopCode ? '['+charObj.oopCode+']' : ''}:\n`;
                     
+                    // 輸出全局 OOP 模組關聯（Templates）
                     if (charObj.linkedModules && charObj.linkedModules.length > 0) {
-                        outline += `    - OOP 模組關聯 (Templates):\n`;
+                        outline += `    - OOP 模組關聯 (Templates - 全局基礎設定):\n`;
                         charObj.linkedModules.forEach(modCode => {
                             let modName = modCode;
                             for (const catKey in state.moduleData) {
@@ -1871,13 +2211,21 @@
                         });
                     }
                     
-                    const labelMap = {};
-                    state.config.outlineModTypes.forEach(mt => labelMap[mt.key] = mt.label);
-                    for (const key in charData.settings) {
-                        const s = charData.settings[key];
-                        if (s.name) outline += `    - ${labelMap[key] || key}: ${s.name}\n`;
-                        if (s.must) outline += `    - [MUST_EXECUTE (${labelMap[key] || key})]: ${s.must}\n`;
-                        if (s.forbid) outline += `    - [FORBIDDEN_EXECUTE (${labelMap[key] || key})]: ${s.forbid}\n`;
+                    // 【新增】輸出 OUTLINE 表列式模組設定（優先級 > 全局 OOP）
+                    if (charData.moduleRows && charData.moduleRows.length > 0) {
+                        outline += `    - OUTLINE 模組表列設定 (優先級 > 全局 OOP):\n`;
+                        charData.moduleRows.forEach((row, idx) => {
+                            const catLabel = getCategoryLabel(row.category);
+                            const modName = getModuleName(row.moduleCode);
+                            outline += `      - [表列 ${idx + 1}] 類別: ${catLabel}`;
+                            if (row.moduleCode) {
+                                outline += ` | 模組: ${modName} [${row.moduleCode}]`;
+                            }
+                            outline += `\n`;
+                            if (row.mustExecute) outline += `        - MUST EXECUTE: ${row.mustExecute}\n`;
+                            if (row.forbid) outline += `        - FORBID: ${row.forbid}\n`;
+                            if (row.reason) outline += `        - REASON (AI 生成提示方向): ${row.reason}\n`;
+                        });
                     }
                 }
             }
@@ -1885,7 +2233,7 @@
             if (tab.actionText) outline += `- 全局動作描述：${tab.actionText}\n`;
             outline += "\n";
         }
-        outline += `[SYSTEM_INSTRUCTION]: 請根據上述大綱與 OOP 實例模組生成正文，嚴格遵守段落字數限制，並在文末嚴格按照 <sd_prompt> 格式輸出帶權重的視覺提示詞。`;
+        outline += `[SYSTEM_INSTRUCTION]: 請根據上述大綱與 OOP 實例模組生成正文。注意：OUTLINE 表列設定的優先級高於全局 OOP 模組，必須嚴格遵守。請根據 REASON 欄位理解每個模組的使用原因，將其轉化為角色的潛台詞與微表情（Show, don't tell）。嚴格遵守段落字數限制，並在文末嚴格按照 <sd_prompt> 格式輸出帶權重的視覺提示詞。`;
         return outline;
     }
 
