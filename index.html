@@ -39,6 +39,22 @@
         .tag-cloud-btn { transition: all 0.2s ease; }
         .tag-cloud-btn:hover { transform: translateY(-2px); }
         .tag-cloud-btn.active { background: #00f2ff; color: #002022; }
+        
+        /* 創作空間裕度指示器 */
+        .creative-space-margin {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .creative-space-margin.high { background: #10b9811a; color: #10b981; }
+        .creative-space-margin.medium { background: #f59e0b1a; color: #f59e0b; }
+        .creative-space-margin.low { background: #ef44441a; color: #ef4444; }
+        .creative-space-margin .emoji { font-size: 12px; margin-right: 2px; }
     </style>
 
     <script id="tailwind-config">
@@ -69,13 +85,13 @@
 
 <div id="secure-mask" class="secure-mask">
     <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.6.01)</div>
+    <div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.6.02)</div>
 </div>
 
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
     <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.6.01)</h1>
+        <h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.6.02)</h1>
     </div>
     <div class="flex items-center gap-3">
         <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -1616,7 +1632,7 @@
                 <div class="glass-panel p-4 rounded-sm">
                     <h3 class="font-label-caps text-xs text-on-surface-variant mb-2">標籤操作說明</h3>
                     <div class="text-xs text-on-surface-variant space-y-1">
-                        <p>• 點擊標籤雲中的標籤可篩選擁有該標籤的模組</p>
+                        <p>• 點擊標籤雲中的標籤可篩選出擁有該標籤的模組</p>
                         <p>• 在 Modules 頁面中，可以為模組添加或移除標籤</p>
                         <p>• 使用批量操作功能，可以一次性為多個模組添加/移除標籤</p>
                     </div>
@@ -1677,6 +1693,23 @@
                 }
             };
         });
+    }
+
+    // 計算創作空間裕度
+    function calculateCreativeSpaceMargin(charData) {
+        if (!charData || !charData.modules) return '<span class="creative-space-margin medium"><span class="emoji">🟡</span> 60%</span>';
+        
+        const moduleCount = charData.modules.length;
+        const strictConstraints = charData.modules.filter(m => m.mustExecute || m.forbid).length;
+        
+        let percentage = 80 - (moduleCount * 10) - (strictConstraints * 5);
+        percentage = Math.max(20, Math.min(80, percentage));
+        
+        let statusClass = 'medium';
+        if (percentage >= 70) statusClass = 'high';
+        else if (percentage <= 40) statusClass = 'low';
+        
+        return `<span class="creative-space-margin ${statusClass}"><span class="emoji">${percentage >= 70 ? '🟢' : percentage <= 40 ? '🔴' : '🟡'}</span> ${percentage}%</span>`;
     }
 
     function renderOutlineView(container) {
@@ -1741,7 +1774,7 @@
             <div class="space-y-2"><label class="font-label-caps text-[10px] text-on-surface-variant">出場人物 (Instances)</label>
                 ${chars.map(c => `
                     <div class="glass-panel p-2 rounded-sm space-y-2">
-                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="char-check rounded text-primary-container" data-code="${c.id}" ${tabData.characters[c.id]?.checked ? 'checked' : ''}><span class="font-data-md text-sm">${c.name} ${c.oopCode ? '['+c.oopCode+']' : ''}</span></label>
+                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="char-check rounded text-primary-container" data-code="${c.id}" ${tabData.characters[c.id]?.checked ? 'checked' : ''}><span class="font-data-md text-sm">${c.name} ${c.oopCode ? '['+c.oopCode+']' : ''}</span> ${calculateCreativeSpaceMargin(tabData.characters[c.id])}</label>
                         <div class="char-settings ${tabData.characters[c.id]?.checked ? '' : 'hidden'} space-y-2 pl-6 border-l border-outline-variant">
                             ${modTypes.map(mt => {
                                 const mods = state.moduleData[mt.key] || [];
