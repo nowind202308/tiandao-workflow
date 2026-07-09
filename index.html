@@ -78,12 +78,12 @@ theme: { extend: { colors: {
 <body class="bg-background text-on-surface font-body-lg overflow-hidden h-screen flex flex-col">
 <div id="secure-mask" class="secure-mask">
 <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-<div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.6.04)</div>
+<div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.6.04.1)</div>
 </div>
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
 <div class="flex items-center gap-2">
 <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-<h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.6.04)</h1>
+<h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.6.04.1)</h1>
 </div>
 <div class="flex items-center gap-3">
 <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -172,7 +172,6 @@ moduleCategoriesInitialized: false,
 selectedModules: new Set(),
 tagFilter: null,
 tagSearchQuery: '',
-// 章節展開狀態管理
 expandedChapters: new Set()
 };
 
@@ -194,22 +193,50 @@ performPostLoginActions();
 }
 }
 }
+
+// 【修復】加入重試機制與詳細錯誤攔截
+let initRetryCount = 0;
 function initGoogleApis() {
 if (typeof gapi === 'undefined' || typeof google === 'undefined' || !google.accounts) {
+initRetryCount++;
+if (initRetryCount > 50) { // 10秒超時
+console.error('Google API 載入超時。請檢查網路連線，或瀏覽器是否封鎖了 Google 腳本。');
+const maskStatus = document.getElementById('mask-status');
+if(maskStatus) maskStatus.innerText = 'ERROR: Google API Load Timeout';
+return;
+}
 setTimeout(initGoogleApis, 200);
 return;
 }
+
 gapi.load('client', async () => {
+try {
 await gapi.client.init({ discoveryDocs: TDF_CONFIG.DISCOVERY_DOCS });
 state.gapiInited = true;
 attemptAutoLogin();
+} catch (e) {
+console.error('gapi.client.init 失敗:', e);
+}
 });
+
 state.tokenClient = google.accounts.oauth2.initTokenClient({
-client_id: TDF_CONFIG.CLIENT_ID, scope: TDF_CONFIG.SCOPES, callback: handleTokenResponse,
+client_id: TDF_CONFIG.CLIENT_ID,
+scope: TDF_CONFIG.SCOPES,
+callback: handleTokenResponse,
+error_callback: (error) => {
+console.error('Google OAuth 錯誤:', error);
+if (error.type !== 'popup_closed') {
+alert('Google 登入發生錯誤！\n\n可能原因：\n1. 當前網域未加入 Google Cloud Console 的「已授權的 JavaScript 來源」。\n2. 您正在使用 file:// 協議開啟檔案（Google OAuth 必須使用 http:// 或 https://，請使用 Live Server）。\n\n詳細錯誤: ' + (error.message || error.type));
+}
+}
 });
 state.gisInited = true;
 attemptAutoLogin();
 }
+
+// 【修復】直接執行初始化，不依賴 window.onload，避免外部腳本載入順序問題
+initGoogleApis();
+
 async function performPostLoginActions() {
 document.getElementById('auth-btn-text').innerText = 'AGENT_AUTH';
 document.getElementById('auth-btn').classList.replace('bg-primary-container', 'bg-surface-container-highest');
@@ -359,9 +386,7 @@ const name = nameMatch ? nameMatch[1].trim() : code;
 const tagsMatch = content.match(/\[TAGS\]\s*[:：]\s*(.+)/i);
 const tags = tagsMatch ? tagsMatch[1].split(',').map(t => t.trim()).filter(t => t) : [];
 const extractField = (fieldName) => {
-const regex = new RegExp(`^\\s*\\[${fieldName}\\]\\s*[:：]\\s*(.*?)(?=\\r?\
-\\s*\\[|\\r?\
-\\s*[A-Z_]+\\s*[:：]|$)`, 'ms');
+const regex = new RegExp(`^\\s*\\[${fieldName}\\]\\s*[:：]\\s*(.*?)(?=\\r?\n\\s*\\[|\\r?\n\\s*[A-Z_]+\\s*[:：]|$)`, 'ms');
 const match = content.match(regex);
 return match ? match[1].trim() : '';
 };
@@ -402,12 +427,7 @@ const content = await DriveAPI.getFileContent(configId);
 state.config = JSON.parse(content);
 }
 const indexData = {
-meta: {
-version: "1.0",
-last_updated: new Date().toISOString(),
-total_modules: 0,
-scanned_categories: 0
-},
+meta: { version: "1.0", last_updated: new Date().toISOString(), total_modules: 0, scanned_categories: 0 },
 categories: {}
 };
 let totalModules = 0;
@@ -417,7 +437,6 @@ let currentParentId = state.driveIds.root;
 for (const folderName of cat.path) {
 let folderId = await DriveAPI.findId(folderName, currentParentId, true);
 if (!folderId) {
-console.log(`[Index] 自動建立缺失資料夾: ${folderName}`);
 const res = await DriveAPI.createFolder(folderName, currentParentId);
 folderId = res.id;
 }
@@ -433,19 +452,10 @@ try {
 const content = await DriveAPI.getFileContent(file.id);
 const parsed = this.parseModule(content, file.name);
 if (parsed.code) {
-indexData.categories[cat.key].push({
-id: parsed.code,
-name: parsed.name,
-fileId: file.id,
-tags: parsed.tags
-});
+indexData.categories[cat.key].push({ id: parsed.code, name: parsed.name, fileId: file.id, tags: parsed.tags });
 totalModules++;
-} else {
-console.warn(`[Index] 檔案 ${file.name} 解析失敗，未找到 [MOD_ID]`);
 }
-} catch (e) {
-console.error(`[Index] 讀取檔案 ${file.name} 失敗`, e);
-}
+} catch (e) { console.error(`[Index] 讀取檔案 ${file.name} 失敗`, e); }
 }
 }
 }
@@ -453,22 +463,15 @@ indexData.meta.total_modules = totalModules;
 indexData.meta.scanned_categories = scannedCategories;
 const jsonStr = JSON.stringify(indexData, null, 2);
 const existingIndexId = await DriveAPI.findId(this.INDEX_FILE_NAME, state.driveIds.root, false);
-if (existingIndexId) {
-await DriveAPI.updateFile(existingIndexId, jsonStr);
-} else {
-await DriveAPI.createFile(this.INDEX_FILE_NAME, state.driveIds.root, jsonStr);
-}
-console.log(`[Index] 重建完成！掃描了 ${scannedCategories} 個分類，共索引 ${totalModules} 個模組。`);
+if (existingIndexId) await DriveAPI.updateFile(existingIndexId, jsonStr);
+else await DriveAPI.createFile(this.INDEX_FILE_NAME, state.driveIds.root, jsonStr);
 return indexData;
 },
 async loadAll(useIndex = true) {
 if (!state.config || !state.driveIds.root) return;
 if (useIndex) {
 const indexData = await this.loadIndex();
-if (indexData) {
-this.buildStateFromIndex(indexData);
-return;
-}
+if (indexData) { this.buildStateFromIndex(indexData); return; }
 }
 state.moduleData = {};
 for (const cat of state.config.categories) {
@@ -497,43 +500,6 @@ state.moduleData[cat.key].push(parsed);
 }
 }
 };
-async function updateModuleTags(fileId, newTags) {
-let content = await DriveAPI.getFileContent(fileId);
-content = content.replace(/\[TAGS\]\s*[:：]\s*.+/i, '');
-if (newTags.length > 0) {
-content += `
-[TAGS]: ${newTags.join(', ')}`;
-}
-await DriveAPI.updateFile(fileId, content);
-for (const catKey in state.moduleData) {
-const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
-if (mod) {
-mod.tags = newTags;
-break;
-}
-}
-}
-async function removeTagFromModule(fileId, tagToRemove) {
-let content = await DriveAPI.getFileContent(fileId);
-const tagsMatch = content.match(/\[TAGS\]\s*[:：]\s*(.+)/i);
-let tags = [];
-if (tagsMatch) {
-tags = tagsMatch[1].split(',').map(t => t.trim()).filter(t => t && t !== tagToRemove);
-content = content.replace(/\[TAGS\]\s*[:：]\s*.+/i, '');
-}
-if (tags.length > 0) {
-content += `
-[TAGS]: ${tags.join(', ')}`;
-}
-await DriveAPI.updateFile(fileId, content);
-for (const catKey in state.moduleData) {
-const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
-if (mod) {
-mod.tags = tags;
-break;
-}
-}
-}
 async function initializeEnvironment() {
 const mask = document.getElementById('mask-status');
 mask.innerText = 'INITIALIZING_STRUCTURE...';
@@ -583,10 +549,7 @@ case 'triggers': renderTriggersView(container); break;
 }
 }
 function renderSystemView(container) {
-if (!state.config) {
-renderUploadConfigView(container);
-return;
-}
+if (!state.config) { renderUploadConfigView(container); return; }
 container.innerHTML = `
 <div class="p-gutter space-y-4 pb-40">
 <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">專案環境狀態</h2>
@@ -598,7 +561,7 @@ container.innerHTML = `
 </div>
 <button id="init-btn" class="w-full bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow"><span class="material-symbols-outlined">rocket_launch</span> 一鍵初始化專案環境</button>
 <div class="grid grid-cols-2 gap-2">
-<button id="load-fast-btn" class="bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow"><span class="material-symbols-outlined">bolt</span>  快速載入 (讀取索引)</button>
+<button id="load-fast-btn" class="bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow"><span class="material-symbols-outlined">bolt</span> 快速載入 (讀取索引)</button>
 <button id="rebuild-index-btn" class="bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2 hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined">build</span> ️ 重建索引 (全量掃描)</button>
 </div>
 <button id="edit-config-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2 hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined">settings</span> ⚙️ 編輯組態 (Config Manager)</button>
@@ -627,9 +590,7 @@ const result = await ModuleLoader.buildAndSaveIndex();
 await ModuleLoader.loadAll(true);
 document.getElementById('secure-mask').classList.add('hidden-mask');
 renderCurrentView();
-alert(`索引已重建！
-掃描分類: ${result.meta.scanned_categories}
-索引模組: ${result.meta.total_modules}`);
+alert(`索引已重建！\n掃描分類: ${result.meta.scanned_categories}\n索引模組: ${result.meta.total_modules}`);
 };
 document.getElementById('edit-config-btn').onclick = () => renderConfigManager();
 document.getElementById('reload-btn').onclick = async () => {
@@ -680,15 +641,11 @@ modal.innerHTML = `
 <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">模組分類管理</h3>
 <button id="add-cat-btn" class="bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm font-label-caps text-[10px] flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">add</span> 新增分類</button>
 </div>
-<div id="categories-list" class="space-y-2">
-${categoriesHtml}
-</div>
+<div id="categories-list" class="space-y-2">${categoriesHtml}</div>
 </div>
 <div class="space-y-2">
 <h3 class="font-label-caps text-xs text-primary-fixed-dim border-l-2 border-primary-container pl-2">系統規則 (Prompts)</h3>
-<div class="space-y-3">
-${promptsHtml}
-</div>
+<div class="space-y-3">${promptsHtml}</div>
 </div>
 </div>
 <div class="p-4 border-t border-outline-variant flex gap-2">
@@ -883,12 +840,7 @@ cfg.totalChapters = parseInt(document.getElementById('cfg-chaps').value) || 10;
 cfg.mainActors = parseInt(document.getElementById('cfg-actors').value) || 3;
 cfg.wordCount = parseInt(document.getElementById('cfg-words').value) || 5000;
 saveBooksData();
-const prompt = `【大綱生成指令】
-請為故事《${book.title}》生成一份總體大綱。
-- 風格：${book.style}
-- 總章節數：${cfg.totalChapters}
-- 主要演員人數：${cfg.mainActors}
-請輸出 JSON 格式的章節規劃，包含章節編號、章節版次，每章節分為【起】、【承】、【轉】、【合】四個段落，並嚴格按照四個段落每段落約 ${cfg.wordCount} 字撰寫核心事件摘要。`;
+const prompt = `【大綱生成指令】\n請為故事《${book.title}》生成一份總體大綱。\n- 風格：${book.style}\n- 總章節數：${cfg.totalChapters}\n- 主要演員人數：${cfg.mainActors}\n請輸出 JSON 格式的章節規劃，包含章節編號、章節版次，每章節分為【起】、【承】、【轉】、【合】四個段落，並嚴格按照四個段落每段落約 ${cfg.wordCount} 字撰寫核心事件摘要。`;
 navigator.clipboard.writeText(prompt);
 alert('大綱提問詞已複製！請貼至 LLM 生成大綱。');
 };
@@ -910,9 +862,7 @@ content.innerHTML = `
 </div>
 <div class="space-y-4">
 ${list.length === 0 ? '<div class="text-xs text-on-surface-variant">尚未設定，請點擊新增。</div>' : list.map((item, idx) => {
-if (!item.linkedModules) {
-item.linkedModules = item.oopCode ? [item.oopCode] : [];
-}
+if (!item.linkedModules) item.linkedModules = item.oopCode ? [item.oopCode] : [];
 return `
 <div class="bg-surface-container-high p-4 rounded-sm border border-outline-variant space-y-3 relative group">
 <button data-idx="${idx}" class="del-item-btn absolute top-2 right-2 text-error hover:bg-error-container/20 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity"><span class="material-symbols-outlined text-[18px]">delete</span></button>
@@ -1008,11 +958,8 @@ end: { activeVersionId: null, versions: [] }
 };
 }
 if (chapter.summary === undefined) chapter.summary = '';
-// 確保每個 section 都有正確結構
 ['start', 'continue', 'turn', 'end'].forEach(key => {
-if (!chapter.sections[key]) {
-chapter.sections[key] = { activeVersionId: null, versions: [] };
-}
+if (!chapter.sections[key]) chapter.sections[key] = { activeVersionId: null, versions: [] };
 if (!chapter.sections[key].versions) chapter.sections[key].versions = [];
 });
 return chapter;
@@ -1067,7 +1014,6 @@ ${renderSections(chap, cIdx)}
 listContainer.appendChild(chapEl);
 });
 
-// 綁定事件
 document.getElementById('add-chap-btn').onclick = () => {
 const nextNum = String(book.chapters.length + 1).padStart(3, '0');
 book.chapters.push({
@@ -1087,7 +1033,6 @@ renderChaptersView(container, book);
 };
 
 document.getElementById('save-chaps-btn').onclick = () => {
-// 收集所有輸入
 container.querySelectorAll('.chap-num').forEach(inp => book.chapters[inp.dataset.cidx].number = inp.value);
 container.querySelectorAll('.chap-name').forEach(inp => book.chapters[inp.dataset.cidx].name = inp.value);
 container.querySelectorAll('.chap-status').forEach(sel => book.chapters[sel.dataset.cidx].status = sel.value);
@@ -1108,11 +1053,8 @@ container.querySelectorAll('.chapter-header').forEach(header => {
 header.onclick = (e) => {
 if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
 const chapId = header.dataset.chapId;
-if (state.expandedChapters.has(chapId)) {
-state.expandedChapters.delete(chapId);
-} else {
-state.expandedChapters.add(chapId);
-}
+if (state.expandedChapters.has(chapId)) state.expandedChapters.delete(chapId);
+else state.expandedChapters.add(chapId);
 renderChaptersView(container, book);
 };
 });
@@ -1171,7 +1113,6 @@ ${v.isEditing ? `
 }
 
 function bindSectionEvents(container, book) {
-// 新增版次
 container.querySelectorAll('.add-version-btn').forEach(btn => {
 btn.onclick = (e) => {
 e.stopPropagation();
@@ -1187,7 +1128,6 @@ outline: '',
 content: '',
 isEditing: true
 };
-// 複製前一版資料 (若有)
 if (section.versions.length > 0) {
 const lastV = section.versions[section.versions.length - 1];
 newVersion.outline = lastV.outline || '';
@@ -1199,7 +1139,6 @@ renderChaptersView(container, book);
 };
 });
 
-// 刪除版次
 container.querySelectorAll('.delete-version-btn').forEach(btn => {
 btn.onclick = (e) => {
 e.stopPropagation();
@@ -1215,7 +1154,6 @@ renderChaptersView(container, book);
 };
 });
 
-// 切換編輯狀態
 container.querySelectorAll('.toggle-edit-btn').forEach(btn => {
 btn.onclick = (e) => {
 e.stopPropagation();
@@ -1227,7 +1165,6 @@ renderChaptersView(container, book);
 };
 });
 
-// Radio 選擇 (正式採用)
 container.querySelectorAll('.version-radio').forEach(radio => {
 radio.onchange = (e) => {
 const cIdx = parseInt(radio.closest('.version-list').dataset.cidx);
@@ -1238,7 +1175,6 @@ renderChaptersView(container, book);
 };
 });
 
-// 星等評分
 container.querySelectorAll('.rating-stars').forEach(starsContainer => {
 starsContainer.querySelectorAll('.star').forEach(star => {
 star.onclick = (e) => {
@@ -1253,7 +1189,6 @@ renderChaptersView(container, book);
 });
 });
 
-// 備註輸入 (直接更新 state，不重繪)
 container.querySelectorAll('.version-note-input').forEach(input => {
 input.oninput = (e) => {
 const cIdx = parseInt(input.closest('.version-list').dataset.cidx);
@@ -1263,16 +1198,12 @@ book.chapters[cIdx].sections[sectionKey].versions[vIdx].note = e.target.value;
 };
 });
 
-// 大綱/內文輸入 (直接更新 state，不重繪)
 container.querySelectorAll('.version-outline-input, .version-content-input').forEach(ta => {
 ta.oninput = (e) => {
-const cIdx = parseInt(ta.closest('.version-editor').dataset.cidx || ta.closest('.chapter-body').querySelector('.version-list').dataset.cidx);
-// 修正：從父元素獲取正確索引
 const editor = ta.closest('.version-editor');
 const vIdx = parseInt(editor.dataset.vidx);
 const sectionKey = editor.dataset.section;
-// 需要從 DOM 找到 cIdx
-const list = editor.previousElementSibling; // version-list
+const list = editor.previousElementSibling;
 const listCIdx = parseInt(list.dataset.cidx);
 if (ta.classList.contains('version-outline-input')) {
 book.chapters[listCIdx].sections[sectionKey].versions[vIdx].outline = e.target.value;
@@ -1286,11 +1217,7 @@ book.chapters[listCIdx].sections[sectionKey].versions[vIdx].content = e.target.v
 function getAllModulesByCategory() {
 const result = {};
 for (const catKey in state.moduleData) {
-result[catKey] = state.moduleData[catKey].map(m => ({
-code: m.code,
-name: m.name,
-category: catKey
-}));
+result[catKey] = state.moduleData[catKey].map(m => ({ code: m.code, name: m.name, category: catKey }));
 }
 return result;
 }
@@ -1309,9 +1236,7 @@ return moduleCode;
 }
 function ensureCharDataFormat(charData) {
 if (!charData) return { checked: false, moduleRows: [] };
-if (Array.isArray(charData.moduleRows)) {
-return charData;
-}
+if (Array.isArray(charData.moduleRows)) return charData;
 charData.moduleRows = [];
 if (charData.settings && typeof charData.settings === 'object') {
 for (const key in charData.settings) {
@@ -1319,11 +1244,7 @@ const s = charData.settings[key];
 if (s && (s.name || s.must || s.forbid)) {
 charData.moduleRows.push({
 id: 'row_legacy_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-category: key,
-moduleCode: s.name || '',
-mustExecute: s.must || '',
-forbid: s.forbid || '',
-reason: ''
+category: key, moduleCode: s.name || '', mustExecute: s.must || '', forbid: s.forbid || '', reason: ''
 });
 }
 }
@@ -1391,15 +1312,13 @@ ${moduleOptions}
 <label class="font-label-caps text-[8px] text-primary-fixed-dim flex items-center gap-1">
 <span class="material-symbols-outlined text-[10px]">psychology</span> 模組使用原因 (Reason/Context) - AI 生成提示方向
 </label>
-<textarea class="row-reason-input w-full bg-surface border border-primary-container/30 text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px] min-h-[50px]" data-char="${charId}" data-rowidx="${rowIdx}" placeholder="例：葉辰右眼剛受傷失明，必須用冷酷和不耐煩來掩飾視覺缺陷，防止眼前的敵人察覺弱點並發動突襲。此原因將作為 AI 生成潛台詞與微表情的核心動機。">${row.reason || ''}</textarea>
+<textarea class="row-reason-input w-full bg-surface border border-primary-container/30 text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px] min-h-[50px]" data-char="${charId}" data-rowidx="${rowIdx}" placeholder="例：葉辰右眼剛受傷失明，必須用冷酷和不耐煩來掩飾視覺缺陷...">${row.reason || ''}</textarea>
 </div>
 </div>
 `;
 }
 function calculateCreativeSpaceMargin(charData) {
-if (!charData) {
-return '<span class="creative-space-margin high"><span class="emoji">🟢</span> 100%</span>';
-}
+if (!charData) return '<span class="creative-space-margin high"><span class="emoji">🟢</span> 100%</span>';
 charData = ensureCharDataFormat(charData);
 const rows = charData.moduleRows || [];
 const moduleCount = rows.filter(r => r.moduleCode).length;
@@ -1409,18 +1328,9 @@ percentage = Math.max(20, Math.min(100, percentage));
 let statusClass = 'medium';
 let emoji = '';
 let statusText = '平衡';
-if (percentage >= 70) {
-statusClass = 'high';
-emoji = '🟢';
-statusText = '高度自由';
-} else if (percentage <= 40) {
-statusClass = 'low';
-emoji = '🔴';
-statusText = '嚴格約束';
-}
-return `<span class="creative-space-margin ${statusClass}" title="創作空間裕度：${statusText}
-模組數：${moduleCount}
-約束數：${strictConstraints}"><span class="emoji">${emoji}</span> ${percentage}%</span>`;
+if (percentage >= 70) { statusClass = 'high'; emoji = '🟢'; statusText = '高度自由'; }
+else if (percentage <= 40) { statusClass = 'low'; emoji = '🔴'; statusText = '嚴格約束'; }
+return `<span class="creative-space-margin ${statusClass}" title="創作空間裕度：${statusText}\n模組數：${moduleCount}\n約束數：${strictConstraints}"><span class="emoji">${emoji}</span> ${percentage}%</span>`;
 }
 function renderOutlineView(container) {
 const book = getCurrentBook();
@@ -1481,11 +1391,8 @@ ${scenes.map(s => `<option value="${s.id}" ${tabData.scene === s.id ? 'selected'
 <span class="font-label-caps text-[8px] text-primary-fixed-dim">OUTLINE 表列設定優先級 > 全局 OOP 模組</span>
 </div>
 ${chars.map(c => {
-if (!tabData.characters[c.id]) {
-tabData.characters[c.id] = { checked: false, moduleRows: [] };
-} else {
-tabData.characters[c.id] = ensureCharDataFormat(tabData.characters[c.id]);
-}
+if (!tabData.characters[c.id]) tabData.characters[c.id] = { checked: false, moduleRows: [] };
+else tabData.characters[c.id] = ensureCharDataFormat(tabData.characters[c.id]);
 const charData = tabData.characters[c.id];
 return `
 <div class="glass-panel p-3 rounded-sm space-y-2">
@@ -1526,9 +1433,7 @@ document.getElementById('action-text').oninput = (e) => tabData.actionText = e.t
 tabContent.querySelectorAll('.char-check').forEach(cb => {
 cb.onchange = (e) => {
 const code = e.target.dataset.code;
-if (!tabData.characters[code]) {
-tabData.characters[code] = { checked: false, moduleRows: [] };
-}
+if (!tabData.characters[code]) tabData.characters[code] = { checked: false, moduleRows: [] };
 tabData.characters[code] = ensureCharDataFormat(tabData.characters[code]);
 tabData.characters[code].checked = e.target.checked;
 renderTabContent();
@@ -1537,17 +1442,11 @@ renderTabContent();
 tabContent.querySelectorAll('.add-module-row-btn').forEach(btn => {
 btn.onclick = (e) => {
 const charId = e.currentTarget.dataset.char;
-if (!tabData.characters[charId]) {
-tabData.characters[charId] = { checked: true, moduleRows: [] };
-}
+if (!tabData.characters[charId]) tabData.characters[charId] = { checked: true, moduleRows: [] };
 tabData.characters[charId] = ensureCharDataFormat(tabData.characters[charId]);
 tabData.characters[charId].moduleRows.push({
 id: 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-category: '',
-moduleCode: '',
-mustExecute: '',
-forbid: '',
-reason: ''
+category: '', moduleCode: '', mustExecute: '', forbid: '', reason: ''
 });
 renderTabContent();
 };
@@ -1622,15 +1521,12 @@ charCheckboxes.forEach(cb => {
 if (cb.dataset.code === charId) {
 const label = cb.closest('label');
 const existingMargin = label.querySelector('.creative-space-margin');
-if (existingMargin) {
-existingMargin.outerHTML = calculateCreativeSpaceMargin(charData);
-}
+if (existingMargin) existingMargin.outerHTML = calculateCreativeSpaceMargin(charData);
 }
 });
 }
 function renderTriggersView(container) {
-const prompts = state.config.prompts || { "AUDIT": "【自我審計協議】
-請執行自我審計，檢查上述生成內容是否違反當前生效模組。" };
+const prompts = state.config.prompts || { "AUDIT": "【自我審計協議】\n請執行自我審計，檢查上述生成內容是否違反當前生效模組。" };
 const book = getCurrentBook();
 container.innerHTML = `
 <div class="p-gutter space-y-4 pb-40">
@@ -1654,95 +1550,79 @@ document.getElementById('outline-preview').innerText = generateOutline();
 function generateOutline() {
 const d = state.outlineData;
 const book = getCurrentBook();
-let outline = `[CHAPTER_${d.chapter}_${d.version}]
-`;
-if (book) outline += `[BOOK_META]: 書名《${book.title}》 | 風格：${book.style} | 段落字數限制：${book.paragraphWordCount}字
-`;
-if (d.previousSummary) outline += `### 前章總結參考依據
-${d.previousSummary}
-`;
-outline += `### 本章核心事件
-${d.coreEvent}
-`;
-if (d.chapterSummaryRequirement) outline += `### 本章總結需求調整
-${d.chapterSummaryRequirement}
-`;
+let outline = `[CHAPTER_${d.chapter}_${d.version}]\n`;
+if (book) outline += `[BOOK_META]: 書名《${book.title}》 | 風格：${book.style} | 段落字數限制：${book.paragraphWordCount}字\n`;
+if (d.previousSummary) outline += `### 前章總結參考依據\n${d.previousSummary}\n`;
+outline += `### 本章核心事件\n${d.coreEvent}\n`;
+if (d.chapterSummaryRequirement) outline += `### 本章總結需求調整\n${d.chapterSummaryRequirement}\n`;
 const tabNames = ["起", "承", "轉", "合"];
 for (let i = 0; i < 4; i++) {
 const tab = d.tabs[i];
-outline += `【${tabNames[i]}】
-`;
+outline += `【${tabNames[i]}】\n`;
 const sceneObj = book ? book.scenes.find(s => s.id === tab.scene) : null;
-if (sceneObj) outline += `- 全局場景：${sceneObj.name} ${sceneObj.oopCode ? '['+sceneObj.oopCode+']' : ''}
-`;
-if (tab.hook) outline += `- HOOK承接詞：${tab.hook}
-`;
-outline += "- 出場人物:
-";
+if (sceneObj) outline += `- 全局場景：${sceneObj.name} ${sceneObj.oopCode ? '['+sceneObj.oopCode+']' : ''}\n`;
+if (tab.hook) outline += `- HOOK承接詞：${tab.hook}\n`;
+outline += "- 出場人物:\n";
 let hasChars = false;
 for (const charId in tab.characters) {
 const charData = ensureCharDataFormat(tab.characters[charId]);
 const charObj = book ? book.actors.find(a => a.id === charId) : null;
 if (charData.checked && charObj) {
 hasChars = true;
-outline += `  - [${charObj.name}] ${charObj.oopCode ? '['+charObj.oopCode+']' : ''}:
-`;
+outline += `  - [${charObj.name}] ${charObj.oopCode ? '['+charObj.oopCode+']' : ''}:\n`;
 if (charObj.linkedModules && charObj.linkedModules.length > 0) {
-outline += `    - OOP 模組關聯 (Templates - 全局基礎設定):
-`;
+outline += `    - OOP 模組關聯 (Templates - 全局基礎設定):\n`;
 charObj.linkedModules.forEach(modCode => {
 let modName = modCode;
 for (const catKey in state.moduleData) {
 const mod = state.moduleData[catKey].find(m => m.code === modCode);
-if (mod) {
-modName = mod.name;
-break;
+if (mod) { modName = mod.name; break; }
 }
-}
-outline += `      - ${modName} [${modCode}]
-`;
+outline += `      - ${modName} [${modCode}]\n`;
 });
 }
 if (charData.moduleRows && charData.moduleRows.length > 0) {
-outline += `    - OUTLINE 模組表列設定 (優先級 > 全局 OOP):
-`;
+outline += `    - OUTLINE 模組表列設定 (優先級 > 全局 OOP):\n`;
 charData.moduleRows.forEach((row, idx) => {
 const catLabel = getCategoryLabel(row.category);
 const modName = getModuleName(row.moduleCode);
 outline += `      - [表列 ${idx + 1}] 類別: ${catLabel}`;
-if (row.moduleCode) {
-outline += ` | 模組: ${modName} [${row.moduleCode}]`;
-}
-outline += `
-`;
-if (row.mustExecute) outline += `        - MUST EXECUTE: ${row.mustExecute}
-`;
-if (row.forbid) outline += `        - FORBID: ${row.forbid}
-`;
-if (row.reason) outline += `        - REASON (AI 生成提示方向): ${row.reason}
-`;
+if (row.moduleCode) outline += ` | 模組: ${modName} [${row.moduleCode}]`;
+outline += `\n`;
+if (row.mustExecute) outline += `        - MUST EXECUTE: ${row.mustExecute}\n`;
+if (row.forbid) outline += `        - FORBID: ${row.forbid}\n`;
+if (row.reason) outline += `        - REASON (AI 生成提示方向): ${row.reason}\n`;
 });
 }
 }
 }
-if (!hasChars) outline += "  - (無)
-";
-if (tab.actionText) outline += `- 全局動作描述：${tab.actionText}
-`;
-outline += "
-";
+if (!hasChars) outline += "  - (無)\n";
+if (tab.actionText) outline += `- 全局動作描述：${tab.actionText}\n`;
+outline += "\n";
 }
 outline += `[SYSTEM_INSTRUCTION]: 請根據上述大綱與 OOP 實例模組生成正文。注意：OUTLINE 表列設定的優先級高於全局 OOP 模組，必須嚴格遵守。請根據 REASON 欄位理解每個模組的使用原因，將其轉化為角色的潛台詞與微表情（Show, don't tell）。嚴格遵守段落字數限制，並在文末嚴格按照 <sd_prompt> 格式輸出帶權重的視覺提示詞。`;
 return outline;
 }
+
+// 【修復】登入按鈕事件綁定，加入 try-catch 防止彈窗被擋時程式崩潰
 document.getElementById('auth-btn').addEventListener('click', () => {
 if (!state.tokenClient) {
-alert('Google 登入服務尚未載入完成，請稍候片刻或檢查網路連線。');
+alert('Google 登入服務尚未載入完成。\n請稍候片刻，或檢查網路連線/廣告封鎖外掛。\n若持續無法載入，請按 F12 查看控制台錯誤。');
 return;
 }
-if (gapi.client.getToken()) { performPostLoginActions(); return; }
-state.tokenClient.requestAccessToken({prompt: 'consent'});
+if (gapi.client.getToken()) { 
+performPostLoginActions(); 
+return; 
+}
+
+try {
+state.tokenClient.requestAccessToken({ prompt: 'consent' });
+} catch (e) {
+console.error('requestAccessToken 錯誤:', e);
+alert('無法喚起 Google 登入視窗。\n請檢查瀏覽器是否封鎖了彈出式視窗 (Popup Blocker)。');
+}
 });
+
 document.getElementById('logout-btn').addEventListener('click', () => { localStorage.removeItem('tdf_access_token'); gapi.client.setToken(null); location.reload(); });
 document.querySelectorAll('.nav-btn').forEach(btn => { btn.onclick = () => { state.currentView = btn.dataset.view; renderCurrentView(); }; });
 function toggleNav(collapse) {
@@ -1769,7 +1649,7 @@ state.navCollapsed = false;
 }
 document.getElementById('nav-collapse-btn').addEventListener('click', () => toggleNav(true));
 document.getElementById('nav-expand-btn').addEventListener('click', () => toggleNav(false));
-window.addEventListener('load', initGoogleApis);
+
 </script>
 </body>
 </html>
