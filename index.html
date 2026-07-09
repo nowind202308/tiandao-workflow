@@ -6,8 +6,8 @@
 <title>Project Controller</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-<script async="" defer="" src="https://accounts.google.com/gsi/client"></script>
-<script async="" defer="" src="https://apis.google.com/js/api.js"></script>
+<script async defer src="https://accounts.google.com/gsi/client"></script>
+<script async defer src="https://apis.google.com/js/api.js"></script>
 <style>
 .glass-panel { background: rgba(21, 29, 30, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(132, 148, 149, 0.1); }
 .scanline { width: 100%; height: 2px; background: rgba(0, 219, 231, 0.05); position: absolute; top: 0; animation: scan 8s linear infinite; z-index: 10; pointer-events: none; }
@@ -29,6 +29,47 @@
 #nav-expanded { opacity: 1; transition: opacity 0.3s ease; }
 #nav-collapsed { opacity: 0; transform: scale(0.5); transition: opacity 0.3s ease, transform 0.3s ease; }
 #nav-collapsed.show { opacity: 1; transform: scale(1); }
+
+/* 標籤雲樣式 */
+.tag-cloud-btn { transition: all 0.2s ease; }
+.tag-cloud-btn:hover { transform: translateY(-2px); }
+.tag-cloud-btn.active { background: #00f2ff; color: #002022; }
+/* 創作空間裕度指示器 */
+.creative-space-margin {
+display: inline-flex;
+align-items: center;
+gap: 4px;
+padding: 2px 8px;
+border-radius: 4px;
+font-size: 10px;
+font-weight: 600;
+margin-left: 8px;
+font-family: 'JetBrains Mono', monospace;
+}
+.creative-space-margin.high { background: #10b9811a; color: #10b981; border: 1px solid #10b98133; }
+.creative-space-margin.medium { background: #f59e0b1a; color: #f59e0b; border: 1px solid #f59e0b33; }
+.creative-space-margin.low { background: #ef44441a; color: #ef4444; border: 1px solid #ef444433; }
+.creative-space-margin .emoji { font-size: 12px; margin-right: 2px; }
+/* 模組表列樣式 */
+.module-row-card {
+background: rgba(35, 43, 44, 0.6);
+border: 1px solid rgba(58, 73, 75, 0.5);
+border-left: 3px solid #00dbe7;
+transition: all 0.2s ease;
+}
+.module-row-card:hover {
+background: rgba(46, 54, 55, 0.8);
+border-left-color: #00f2ff;
+}
+.module-row-card .row-index {
+background: #00dbe720;
+color: #00dbe7;
+font-family: 'JetBrains Mono', monospace;
+font-size: 9px;
+padding: 1px 6px;
+border-radius: 3px;
+font-weight: 700;
+}
 
 /* 章節與版次管理系統專屬樣式 */
 .chapter-header { transition: background-color 0.2s; }
@@ -78,12 +119,12 @@ theme: { extend: { colors: {
 <body class="bg-background text-on-surface font-body-lg overflow-hidden h-screen flex flex-col">
 <div id="secure-mask" class="secure-mask">
 <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-<div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.6.07)</div>
+<div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.6.08)</div>
 </div>
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
 <div class="flex items-center gap-2">
 <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-<h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.6.07)</h1>
+<h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.6.08)</h1>
 </div>
 <div class="flex items-center gap-3">
 <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -498,6 +539,44 @@ state.moduleData[cat.key].push(parsed);
 }
 }
 };
+
+// 標籤管理系統函數
+async function updateModuleTags(fileId, newTags) {
+let content = await DriveAPI.getFileContent(fileId);
+content = content.replace(/\[TAGS\]\s*[:：]\s*.+/i, '');
+if (newTags.length > 0) {
+content += `\n[TAGS]: ${newTags.join(', ')}`;
+}
+await DriveAPI.updateFile(fileId, content);
+for (const catKey in state.moduleData) {
+const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
+if (mod) {
+mod.tags = newTags;
+break;
+}
+}
+}
+async function removeTagFromModule(fileId, tagToRemove) {
+let content = await DriveAPI.getFileContent(fileId);
+const tagsMatch = content.match(/\[TAGS\]\s*[:：]\s*(.+)/i);
+let tags = [];
+if (tagsMatch) {
+tags = tagsMatch[1].split(',').map(t => t.trim()).filter(t => t && t !== tagToRemove);
+content = content.replace(/\[TAGS\]\s*[:：]\s*.+/i, '');
+}
+if (tags.length > 0) {
+content += `\n[TAGS]: ${tags.join(', ')}`;
+}
+await DriveAPI.updateFile(fileId, content);
+for (const catKey in state.moduleData) {
+const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
+if (mod) {
+mod.tags = tags;
+break;
+}
+}
+}
+
 async function initializeEnvironment() {
 const mask = document.getElementById('mask-status');
 mask.innerText = 'INITIALIZING_STRUCTURE...';
@@ -562,7 +641,7 @@ container.innerHTML = `
 <button id="load-fast-btn" class="bg-primary-container text-on-primary-fixed py-3 rounded-sm font-label-caps text-sm flex items-center justify-center gap-2 active:opacity-80 transition-all cyan-glow"><span class="material-symbols-outlined">bolt</span> 快速載入 (讀取索引)</button>
 <button id="rebuild-index-btn" class="bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2 hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined">build</span> ️ 重建索引 (全量掃描)</button>
 </div>
-<button id="edit-config-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2 hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined">settings</span> ⚙️ 編輯組態 (Config Manager)</button>
+<button id="edit-config-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant flex items-center justify-center gap-2 hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined">settings</span> ️ 編輯組態 (Config Manager)</button>
 <button id="reload-btn" class="w-full bg-surface-container-high text-on-surface py-3 rounded-sm font-label-caps text-sm border border-outline-variant">🔄 重新載入模組庫</button>
 </div>
 `;
@@ -944,289 +1023,787 @@ renderChaptersView(content, book);
 }
 
 // ==========================================
-// 【新增】模組庫與標籤管理頁面
+// 【恢復 1.6.03】模組庫與標籤管理頁面
 // ==========================================
-function renderModulesView(container) {
-let html = `
-<div class="p-gutter space-y-4 pb-40">
-<div class="flex justify-between items-center border-b border-outline-variant pb-3">
-<h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">模組庫總覽 (Modules Library)</h2>
-<input type="text" id="module-search" placeholder="搜尋模組..." value="${state.moduleSearchQuery}" class="bg-surface-container-high border border-outline text-on-surface px-3 py-1.5 rounded-sm font-data-md text-xs w-64">
-</div>
-<div id="modules-list" class="space-y-4">
-`;
-
-const query = state.moduleSearchQuery.toLowerCase();
-let hasResults = false;
-
+async function batchAddTag(tag) {
+document.getElementById('mask-status').innerText = 'BATCH ADDING TAG...';
+document.getElementById('secure-mask').classList.remove('hidden-mask');
+for (const fileId of state.selectedModules) {
+let content = await DriveAPI.getFileContent(fileId);
+const tagsMatch = content.match(/\[TAGS\]\s*[:：]\s*(.+)/i);
+let tags = [];
+if (tagsMatch) {
+tags = tagsMatch[1].split(',').map(t => t.trim()).filter(t => t);
+content = content.replace(/\[TAGS\]\s*[:：]\s*.+/i, '');
+}
+if (!tags.includes(tag)) {
+tags.push(tag);
+}
+if (tags.length > 0) {
+content += `\n[TAGS]: ${tags.join(', ')}`;
+}
+await DriveAPI.updateFile(fileId, content);
 for (const catKey in state.moduleData) {
-const catLabel = getCategoryLabel(catKey);
-const modules = state.moduleData[catKey];
-
-const filteredModules = modules.filter(m => {
-if (!query) return true;
-return m.name.toLowerCase().includes(query) ||
-(m.description && m.description.toLowerCase().includes(query)) ||
-(m.tags && m.tags.some(t => t.toLowerCase().includes(query)));
-});
-
-if (filteredModules.length === 0 && query) continue;
-hasResults = true;
-
-const isCollapsed = state.moduleCollapsedCategories.has(catKey);
-
-html += `
-<div class="glass-panel rounded-sm overflow-hidden">
-<div class="flex justify-between items-center p-3 bg-surface-container-high cursor-pointer module-cat-header" data-cat="${catKey}">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-[18px] text-on-surface-variant transition-transform ${isCollapsed ? '' : 'rotate-90'}">chevron_right</span>
-<h3 class="font-label-caps text-xs text-primary-fixed-dim">${catLabel}</h3>
-<span class="font-data-md text-[10px] text-on-surface-variant bg-surface px-2 py-0.5 rounded">${filteredModules.length}</span>
-</div>
-</div>
-<div class="module-cat-content ${isCollapsed ? 'hidden' : ''} p-3 space-y-2">
-${filteredModules.length === 0 ? '<div class="text-xs text-on-surface-variant p-2">此分類暫無模組</div>' :
-filteredModules.map(m => `
-<div class="bg-surface p-3 rounded-sm border border-outline-variant hover:border-primary-container/30 transition-colors">
-<div class="flex justify-between items-start mb-1">
-<div class="flex items-center gap-2">
-<span class="font-data-md text-sm text-primary-fixed-dim">${m.name}</span>
-<span class="font-label-caps text-[9px] text-on-surface-variant bg-surface-container-high px-1.5 py-0.5 rounded">${m.code}</span>
-</div>
-</div>
-<div class="font-data-md text-[11px] text-on-surface-variant line-clamp-2 mb-2">${m.description || '無描述'}</div>
-<div class="flex flex-wrap gap-1">
-${(m.tags || []).map(t => `<span class="text-[9px] bg-primary-container/10 text-primary-fixed-dim px-1.5 py-0.5 rounded border border-primary-container/20">${t}</span>`).join('')}
-</div>
-</div>
-`).join('')}
-</div>
-</div>
-`;
+const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
+if (mod) {
+mod.tags = tags;
+break;
 }
-
-if (!hasResults) {
-html += `<div class="text-center text-on-surface-variant py-10 font-data-md">沒有找到符合條件的模組。</div>`;
 }
-
-html += `</div></div>`;
-container.innerHTML = html;
-
-document.getElementById('module-search').oninput = (e) => {
-state.moduleSearchQuery = e.target.value;
-renderModulesView(container);
+}
+document.getElementById('secure-mask').classList.add('hidden-mask');
+renderCurrentView();
+alert(`已為 ${state.selectedModules.size} 個模組添加標籤 "${tag}"`);
+}
+async function batchRemoveTag(tag) {
+document.getElementById('mask-status').innerText = 'BATCH REMOVING TAG...';
+document.getElementById('secure-mask').classList.remove('hidden-mask');
+for (const fileId of state.selectedModules) {
+await removeTagFromModule(fileId, tag);
+}
+document.getElementById('secure-mask').classList.add('hidden-mask');
+renderCurrentView();
+alert(`已從 ${state.selectedModules.size} 個模組移除標籤 "${tag}"`);
+}
+function openModuleEditor(fileId, catKey) {
+const mod = state.moduleData[catKey].find(m => m.fileId === fileId);
+if (!mod) return;
+const loadAndEdit = async () => {
+if (!mod.rawContent) {
+document.getElementById('mask-status').innerText = 'FETCHING_MODULE...';
+document.getElementById('secure-mask').classList.remove('hidden-mask');
+mod.rawContent = await DriveAPI.getFileContent(mod.fileId);
+document.getElementById('secure-mask').classList.add('hidden-mask');
+}
+renderModuleEditorModal(mod, catKey);
 };
-
-container.querySelectorAll('.module-cat-header').forEach(header => {
-header.onclick = () => {
-const catKey = header.dataset.cat;
-if (state.moduleCollapsedCategories.has(catKey)) {
-state.moduleCollapsedCategories.delete(catKey);
-} else {
-state.moduleCollapsedCategories.add(catKey);
+loadAndEdit();
 }
-renderModulesView(container);
-};
-});
-}
-
-function renderTagsView(container) {
-const allTags = new Set();
-for (const catKey in state.moduleData) {
-state.moduleData[catKey].forEach(m => {
-if (m.tags) m.tags.forEach(t => allTags.add(t));
-});
-}
-const tagsArray = Array.from(allTags).sort();
-
-let html = `
-<div class="p-gutter space-y-4 pb-40">
-<div class="flex justify-between items-center border-b border-outline-variant pb-3">
-<h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">標籤管理與過濾 (Tags)</h2>
-<input type="text" id="tag-search" placeholder="搜尋標籤..." value="${state.tagSearchQuery}" class="bg-surface-container-high border border-outline text-on-surface px-3 py-1.5 rounded-sm font-data-md text-xs w-64">
-</div>
-
-<div class="glass-panel p-4 rounded-sm">
-<h3 class="font-label-caps text-xs text-primary-fixed-dim mb-3">所有標籤 (點擊過濾模組)</h3>
-<div class="flex flex-wrap gap-2 mb-4">
-<button class="tag-filter-btn ${!state.tagFilter ? 'bg-primary-container text-on-primary-fixed' : 'bg-surface-container-high text-on-surface border border-outline-variant'} px-3 py-1 rounded-sm font-label-caps text-[10px]" data-tag="">全部</button>
-${tagsArray.map(t => `
-<button class="tag-filter-btn ${state.tagFilter === t ? 'bg-primary-container text-on-primary-fixed' : 'bg-surface-container-high text-on-surface border border-outline-variant hover:border-primary-container/50'} px-3 py-1 rounded-sm font-label-caps text-[10px]" data-tag="${t}">${t}</button>
-`).join('')}
-</div>
-</div>
-
-<div id="tagged-modules-list" class="space-y-4">
-`;
-
-const query = state.tagSearchQuery.toLowerCase();
-let hasResults = false;
-
-for (const catKey in state.moduleData) {
-const catLabel = getCategoryLabel(catKey);
-const modules = state.moduleData[catKey];
-
-const filteredModules = modules.filter(m => {
-const matchTag = !state.tagFilter || (m.tags && m.tags.includes(state.tagFilter));
-const matchQuery = !query || m.name.toLowerCase().includes(query) || (m.description && m.description.toLowerCase().includes(query));
-return matchTag && matchQuery;
-});
-
-if (filteredModules.length === 0) continue;
-hasResults = true;
-
-html += `
-<div class="glass-panel rounded-sm overflow-hidden">
-<div class="p-3 bg-surface-container-high">
-<h3 class="font-label-caps text-xs text-primary-fixed-dim">${catLabel} <span class="text-on-surface-variant">(${filteredModules.length})</span></h3>
-</div>
-<div class="p-3 space-y-2">
-${filteredModules.map(m => `
-<div class="bg-surface p-3 rounded-sm border border-outline-variant">
-<div class="flex items-center gap-2 mb-1">
-<span class="font-data-md text-sm text-primary-fixed-dim">${m.name}</span>
-<span class="font-label-caps text-[9px] text-on-surface-variant bg-surface-container-high px-1.5 py-0.5 rounded">${m.code}</span>
-</div>
-<div class="font-data-md text-[11px] text-on-surface-variant line-clamp-2 mb-2">${m.description || '無描述'}</div>
-<div class="flex flex-wrap gap-1">
-${(m.tags || []).map(t => `<span class="text-[9px] bg-primary-container/10 text-primary-fixed-dim px-1.5 py-0.5 rounded border border-primary-container/20">${t}</span>`).join('')}
-</div>
-</div>
-`).join('')}
-</div>
-</div>
-`;
-}
-
-if (!hasResults) {
-html += `<div class="text-center text-on-surface-variant py-10 font-data-md">沒有找到符合條件的模組。</div>`;
-}
-
-html += `</div></div>`;
-container.innerHTML = html;
-
-document.getElementById('tag-search').oninput = (e) => {
-state.tagSearchQuery = e.target.value;
-renderTagsView(container);
-};
-
-container.querySelectorAll('.tag-filter-btn').forEach(btn => {
-btn.onclick = () => {
-state.tagFilter = btn.dataset.tag || null;
-renderTagsView(container);
-};
-});
-}
-
-function openAddModuleModal(idx, list, allAvailableModules) {
+function renderModuleEditorModal(mod, catKey) {
 const modal = document.getElementById('modal-container');
 modal.classList.remove('hidden');
-
-const currentLinked = list[idx].linkedModules || [];
-
-let html = `
+modal.innerHTML = `
 <div class="modal-overlay">
 <div class="bg-surface border border-outline-variant rounded-sm w-full max-w-2xl h-[80vh] flex flex-col">
 <div class="p-4 border-b border-outline-variant flex justify-between items-center">
-<div class="font-label-caps text-xs text-primary-fixed-dim">手動添加模組關聯</div>
+<div>
+<div class="font-label-caps text-xs text-primary-fixed-dim">編輯模組: ${mod.name}</div>
+<div class="font-data-md text-[10px] text-on-surface-variant">ID: ${mod.code} | File ID: ${mod.fileId}</div>
+</div>
 <button id="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button>
 </div>
-<div class="flex-1 overflow-y-auto p-4 space-y-2">
-${allAvailableModules.map(m => `
-<label class="flex items-center gap-3 p-2 rounded-sm hover:bg-surface-container-high cursor-pointer">
-<input type="checkbox" class="mod-checkbox rounded text-primary-container" data-code="${m.code}" ${currentLinked.includes(m.code) ? 'checked' : ''}>
-<div class="flex-1">
-<div class="font-data-md text-sm">${m.name} <span class="text-[10px] text-on-surface-variant">[${m.code}]</span></div>
-<div class="font-data-md text-[10px] text-on-surface-variant">${getCategoryLabel(m.category)}</div>
+<textarea id="editor-content" class="flex-1 p-4 bg-black/20 text-on-surface font-data-md text-sm resize-none focus:ring-0 border-none">${mod.rawContent}</textarea>
+<div class="p-4 border-t border-outline-variant flex gap-2">
+<button id="save-overwrite" class="flex-1 bg-primary-container text-on-primary-fixed py-2 rounded-sm font-label-caps text-xs">💾 覆寫原模組</button>
+<button id="save-as" class="flex-1 bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">📄 另存新模組</button>
 </div>
+</div>
+</div>
+`;
+document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
+document.getElementById('save-overwrite').onclick = async () => {
+const content = document.getElementById('editor-content').value;
+await DriveAPI.updateFile(mod.fileId, content);
+mod.rawContent = content;
+modal.classList.add('hidden');
+alert('模組已覆寫！');
+};
+document.getElementById('save-as').onclick = async () => {
+const newName = prompt('請輸入新模組名稱 (不含 .txt):'); if (!newName) return;
+const content = document.getElementById('editor-content').value;
+const cat = state.config.categories.find(c => c.key === catKey);
+if (!cat) { alert('錯誤：找不到對應的分類配置！'); return; }
+let currentParentId = state.driveIds.root;
+for (const folderName of cat.path) {
+let folderId = await DriveAPI.findId(folderName, currentParentId, true);
+if (!folderId) { const res = await DriveAPI.createFolder(folderName, currentParentId); folderId = res.id; }
+currentParentId = folderId;
+}
+await DriveAPI.createFile(`${newName}.txt`, currentParentId, content);
+await ModuleLoader.buildAndSaveIndex();
+await ModuleLoader.loadAll(true);
+modal.classList.add('hidden');
+renderCurrentView();
+alert('新模組已儲存，索引已更新！');
+};
+}
+function renderModulesView(container) {
+if (!state.moduleCategoriesInitialized) {
+state.config.categories.forEach(cat => state.moduleVisibleCategories.add(cat.key));
+state.moduleCategoriesInitialized = true;
+}
+let html = `
+<div class="p-gutter space-y-4 pb-40">
+<div class="glass-panel p-4 rounded-sm space-y-3">
+<div class="space-y-1">
+<label class="font-label-caps text-[10px] text-on-surface-variant">🔍 搜尋模組</label>
+<input type="text" id="module-search" value="${state.moduleSearchQuery}"
+class="w-full bg-surface-container-high border border-outline text-on-surface px-3 py-2 rounded-sm font-data-md text-sm"
+placeholder="輸入模組名稱或 ID...">
+</div>
+<div class="space-y-2">
+<div class="flex justify-between items-center">
+<label class="font-label-caps text-[10px] text-on-surface-variant">📂 顯示類別 (可多選)</label>
+<div class="flex gap-2">
+<button id="select-all-cats" class="text-primary-fixed-dim text-[10px] hover:underline">全選</button>
+<button id="deselect-all-cats" class="text-on-surface-variant text-[10px] hover:underline">全不選</button>
+</div>
+</div>
+<div class="flex flex-wrap gap-2">
+${state.config.categories.map(cat => `
+<label class="flex items-center gap-1 bg-surface-container-high px-2 py-1 rounded-sm cursor-pointer hover:bg-surface-container-highest transition-colors">
+<input type="checkbox" class="cat-checkbox rounded text-primary-container" data-key="${cat.key}"
+${state.moduleVisibleCategories.has(cat.key) ? 'checked' : ''}>
+<span class="font-data-md text-[10px]">${cat.label}</span>
 </label>
 `).join('')}
 </div>
-<div class="p-4 border-t border-outline-variant flex gap-2">
-<button id="save-mod-link" class="flex-1 bg-primary-container text-on-primary-fixed py-2 rounded-sm font-label-caps text-xs">儲存關聯</button>
+</div>
+<!-- 批量操作區域 -->
+<div class="border-t border-outline-variant pt-3">
+<div class="flex justify-between items-center mb-2">
+<label class="font-label-caps text-[10px] text-on-surface-variant">📦 批量操作 (已選: <span id="selected-count">${state.selectedModules.size}</span> 個)</label>
+<div class="flex gap-2">
+<button id="batch-add-tag-btn" class="bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm text-[10px] ${state.selectedModules.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}">批量添加標籤</button>
+<button id="batch-remove-tag-btn" class="bg-error-container/20 text-error px-2 py-1 rounded-sm text-[10px] ${state.selectedModules.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}">批量移除標籤</button>
+</div>
 </div>
 </div>
 </div>
 `;
-modal.innerHTML = html;
-
-document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
-document.getElementById('save-mod-link').onclick = () => {
-const newLinked = [];
-modal.querySelectorAll('.mod-checkbox:checked').forEach(cb => {
-newLinked.push(cb.dataset.code);
+for (const cat of state.config.categories) {
+if (!state.moduleVisibleCategories.has(cat.key)) continue;
+const mods = state.moduleData[cat.key] || [];
+const filteredMods = mods.filter(m => {
+if (!state.moduleSearchQuery) return true;
+const query = state.moduleSearchQuery.toLowerCase();
+return m.name.toLowerCase().includes(query) ||
+m.code.toLowerCase().includes(query);
 });
-list[idx].linkedModules = newLinked;
-modal.classList.add('hidden');
-renderBookTabContent();
-};
-}
-
-function openAutolinkModal(idx, list, allAvailableModules) {
-const modal = document.getElementById('modal-container');
-modal.classList.remove('hidden');
-
-const desc = (list[idx].description || '').toLowerCase();
-const name = (list[idx].name || '').toLowerCase();
-
-const recommended = allAvailableModules.filter(m => {
-const modName = m.name.toLowerCase();
-const modDesc = (m.description || '').toLowerCase();
-const modTags = (m.tags || []).map(t => t.toLowerCase());
-
-if (desc.includes(modName) || modTags.some(t => desc.includes(t))) return true;
-if (name && modDesc.includes(name)) return true;
-
-return false;
-});
-
-let html = `
-<div class="modal-overlay">
-<div class="bg-surface border border-outline-variant rounded-sm w-full max-w-2xl h-[80vh] flex flex-col">
-<div class="p-4 border-b border-outline-variant flex justify-between items-center">
-<div class="font-label-caps text-xs text-primary-fixed-dim">AI 自動推薦模組 (基於描述關鍵字匹配)</div>
-<button id="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button>
+const isCollapsed = state.moduleCollapsedCategories.has(cat.key);
+html += `
+<div class="space-y-2">
+<div class="flex items-center justify-between">
+<h3 class="font-label-caps text-[10px] text-on-surface-variant border-l-2 border-primary-container pl-2">
+${cat.label} (${filteredMods.length}/${mods.length})
+</h3>
+<button class="collapse-btn text-on-surface-variant hover:text-primary-fixed-dim p-1" data-key="${cat.key}">
+<span class="material-symbols-outlined text-[18px]">${isCollapsed ? 'expand_more' : 'expand_less'}</span>
+</button>
 </div>
-<div class="flex-1 overflow-y-auto p-4 space-y-2">
-${recommended.length === 0 ? '<div class="text-center text-on-surface-variant py-10">沒有找到匹配的模組，請嘗試手動添加。</div>' :
-recommended.map(m => `
-<div class="bg-surface-container-high p-3 rounded-sm border border-outline-variant">
-<div class="flex items-center gap-2 mb-1">
-<span class="font-data-md text-sm text-primary-fixed-dim">${m.name}</span>
-<span class="font-label-caps text-[9px] text-on-surface-variant bg-surface px-1.5 py-0.5 rounded">${m.code}</span>
-<button class="autolink-add-btn ml-auto bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm font-label-caps text-[10px]" data-code="${m.code}">+ 添加</button>
+${!isCollapsed ? `
+<div class="grid grid-cols-1 gap-2">
+${filteredMods.length === 0 ? '<div class="text-xs text-on-surface-variant glass-panel p-2 rounded">無符合條件的模組</div>' :
+filteredMods.map(m => `
+<div class="glass-panel p-3 rounded-sm flex justify-between items-center hover:bg-surface-container-highest transition-colors">
+<div class="flex items-center gap-3 flex-1">
+<input type="checkbox" class="module-checkbox rounded text-primary-container" data-fileid="${m.fileId}"
+${state.selectedModules.has(m.fileId) ? 'checked' : ''}>
+<div class="flex-1">
+<div class="font-data-md text-sm text-on-surface">${m.name}</div>
+<div class="font-label-caps text-[8px] text-outline uppercase">${m.code}</div>
+${m.tags && m.tags.length > 0 ? `
+<div class="flex flex-wrap gap-1 mt-1">
+${m.tags.map(tag => `<span class="text-[8px] px-1 bg-primary-container/20 text-primary-fixed-dim rounded">${tag}</span>`).join('')}
 </div>
-<div class="font-data-md text-[11px] text-on-surface-variant">${m.description || '無描述'}</div>
+` : ''}
+</div>
+</div>
+<button class="edit-module-btn text-on-surface-variant hover:text-primary-fixed-dim p-1" data-fileid="${m.fileId}" data-catkey="${cat.key}">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
 </div>
 `).join('')}
 </div>
-<div class="p-4 border-t border-outline-variant flex gap-2">
-<button id="close-modal-2" class="flex-1 bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">關閉</button>
+` : ''}
+</div>
+`;
+}
+html += `</div>`;
+container.innerHTML = html;
+const searchInput = document.getElementById('module-search');
+if (searchInput) {
+searchInput.oninput = (e) => {
+state.moduleSearchQuery = e.target.value;
+const cursorPos = e.target.selectionStart;
+renderModulesView(container);
+const newInput = document.getElementById('module-search');
+if (newInput) {
+newInput.focus();
+newInput.setSelectionRange(cursorPos, cursorPos);
+}
+};
+}
+document.querySelectorAll('.cat-checkbox').forEach(cb => {
+cb.onchange = (e) => {
+const key = e.target.dataset.key;
+if (e.target.checked) {
+state.moduleVisibleCategories.add(key);
+} else {
+state.moduleVisibleCategories.delete(key);
+}
+renderModulesView(container);
+const searchInput = document.getElementById('module-search');
+if (searchInput) { searchInput.focus(); }
+};
+});
+document.getElementById('select-all-cats').onclick = () => {
+state.config.categories.forEach(cat => state.moduleVisibleCategories.add(cat.key));
+renderModulesView(container);
+const searchInput = document.getElementById('module-search');
+if (searchInput) { searchInput.focus(); }
+};
+document.getElementById('deselect-all-cats').onclick = () => {
+state.moduleVisibleCategories.clear();
+renderModulesView(container);
+const searchInput = document.getElementById('module-search');
+if (searchInput) { searchInput.focus(); }
+};
+document.querySelectorAll('.collapse-btn').forEach(btn => {
+btn.onclick = (e) => {
+const key = e.currentTarget.dataset.key;
+if (state.moduleCollapsedCategories.has(key)) {
+state.moduleCollapsedCategories.delete(key);
+} else {
+state.moduleCollapsedCategories.add(key);
+}
+renderModulesView(container);
+const searchInput = document.getElementById('module-search');
+if (searchInput) { searchInput.focus(); }
+};
+});
+document.querySelectorAll('.module-checkbox').forEach(cb => {
+cb.onchange = (e) => {
+const fileId = e.target.dataset.fileid;
+if (e.target.checked) {
+state.selectedModules.add(fileId);
+} else {
+state.selectedModules.delete(fileId);
+}
+document.getElementById('selected-count').innerText = state.selectedModules.size;
+document.getElementById('batch-add-tag-btn').classList.toggle('opacity-50', state.selectedModules.size === 0);
+document.getElementById('batch-add-tag-btn').classList.toggle('cursor-not-allowed', state.selectedModules.size === 0);
+document.getElementById('batch-remove-tag-btn').classList.toggle('opacity-50', state.selectedModules.size === 0);
+document.getElementById('batch-remove-tag-btn').classList.toggle('cursor-not-allowed', state.selectedModules.size === 0);
+};
+});
+document.querySelectorAll('.edit-module-btn').forEach(btn => {
+btn.onclick = (e) => {
+const fileId = e.currentTarget.dataset.fileid;
+const catKey = e.currentTarget.dataset.catkey;
+openModuleEditor(fileId, catKey);
+};
+});
+document.getElementById('batch-add-tag-btn').onclick = () => {
+if (state.selectedModules.size === 0) return;
+const tag = prompt(`請輸入要添加的標籤 (將添加到 ${state.selectedModules.size} 個模組):`);
+if (tag && tag.trim()) { batchAddTag(tag.trim()); }
+};
+document.getElementById('batch-remove-tag-btn').onclick = () => {
+if (state.selectedModules.size === 0) return;
+const tag = prompt(`請輸入要移除的標籤 (將從 ${state.selectedModules.size} 個模組移除):`);
+if (tag && tag.trim()) { batchRemoveTag(tag.trim()); }
+};
+}
+function renderTagsView(container) {
+const tagMap = {};
+for (const catKey in state.moduleData) {
+for (const mod of state.moduleData[catKey]) {
+if (mod.tags && mod.tags.length > 0) {
+for (const tag of mod.tags) {
+if (!tagMap[tag]) { tagMap[tag] = { count: 0, modules: [] }; }
+tagMap[tag].count++;
+tagMap[tag].modules.push({ code: mod.code, name: mod.name, fileId: mod.fileId, catKey: catKey });
+}
+}
+}
+}
+const tags = Object.keys(tagMap).sort();
+let html = `
+<div class="p-gutter space-y-4 pb-40">
+<h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">標籤管理系統</h2>
+<div class="glass-panel p-4 rounded-sm">
+<div class="space-y-1">
+<label class="font-label-caps text-[10px] text-on-surface-variant">🔍 搜尋標籤</label>
+<input type="text" id="tag-search" value="${state.tagSearchQuery}"
+class="w-full bg-surface-container-high border border-outline text-on-surface px-3 py-2 rounded-sm font-data-md text-sm"
+placeholder="輸入標籤名稱...">
+</div>
+</div>
+<div class="glass-panel p-4 rounded-sm">
+<h3 class="font-label-caps text-xs text-on-surface-variant mb-2">所有標籤 (${tags.length})</h3>
+<div class="flex flex-wrap gap-2">
+${tags.filter(tag => !state.tagSearchQuery || tag.toLowerCase().includes(state.tagSearchQuery.toLowerCase())).map(tag => `
+<button class="tag-cloud-btn px-3 py-1 rounded-full bg-surface-container-high text-on-surface text-xs hover:bg-primary-container hover:text-on-primary-fixed transition-colors ${state.tagFilter === tag ? 'active' : ''}" data-tag="${tag}">
+${tag} <span class="opacity-50">(${tagMap[tag].count})</span>
+</button>
+`).join('')}
+</div>
+</div>
+${state.tagFilter ? `
+<div class="glass-panel p-4 rounded-sm">
+<div class="flex justify-between items-center mb-2">
+<h3 class="font-label-caps text-xs text-on-surface-variant">篩選結果: <span class="text-primary-fixed-dim">${state.tagFilter}</span> (${tagMap[state.tagFilter].modules.length} 個模組)</h3>
+<button id="clear-tag-filter" class="text-error text-[10px] hover:underline">清除篩選</button>
+</div>
+<div class="space-y-2">
+${tagMap[state.tagFilter].modules.map(mod => `
+<div class="flex justify-between items-center p-2 bg-surface-container-high rounded-sm">
+<div>
+<div class="text-sm">${mod.name}</div>
+<div class="text-[10px] opacity-50">${mod.code}</div>
+</div>
+<button class="remove-tag-from-module-btn bg-error-container/20 text-error px-2 py-1 rounded-sm text-[10px]" data-fileid="${mod.fileId}" data-tag="${state.tagFilter}">移除此標籤</button>
+</div>
+`).join('')}
+</div>
+</div>
+` : ''}
+<div class="glass-panel p-4 rounded-sm">
+<h3 class="font-label-caps text-xs text-on-surface-variant mb-2">標籤操作說明</h3>
+<div class="text-xs text-on-surface-variant space-y-1">
+<p>• 點擊標籤雲中的標籤可篩選出擁有該標籤的模組</p>
+<p>• 在 Modules 頁面中，可以為模組添加或移除標籤</p>
+<p>• 使用批量操作功能，可以一次性為多個模組添加/移除標籤</p>
 </div>
 </div>
 </div>
 `;
-modal.innerHTML = html;
-
-document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
-document.getElementById('close-modal-2').onclick = () => modal.classList.add('hidden');
-
-modal.querySelectorAll('.autolink-add-btn').forEach(btn => {
-btn.onclick = () => {
-const code = btn.dataset.code;
-if (!list[idx].linkedModules) list[idx].linkedModules = [];
-if (!list[idx].linkedModules.includes(code)) {
-list[idx].linkedModules.push(code);
+container.innerHTML = html;
+const tagSearchInput = document.getElementById('tag-search');
+if (tagSearchInput) {
+tagSearchInput.oninput = (e) => {
+state.tagSearchQuery = e.target.value;
+const cursorPos = e.target.selectionStart;
+renderTagsView(container);
+const newInput = document.getElementById('tag-search');
+if (newInput) {
+newInput.focus();
+newInput.setSelectionRange(cursorPos, cursorPos);
 }
-btn.innerText = '已添加';
-btn.disabled = true;
-btn.classList.add('opacity-50');
+};
+}
+container.querySelectorAll('.tag-cloud-btn').forEach(btn => {
+btn.onclick = () => {
+const tag = btn.dataset.tag;
+if (state.tagFilter === tag) { state.tagFilter = null; } else { state.tagFilter = tag; }
+renderTagsView(container);
+};
+});
+const clearFilterBtn = document.getElementById('clear-tag-filter');
+if (clearFilterBtn) {
+clearFilterBtn.onclick = () => { state.tagFilter = null; renderTagsView(container); };
+}
+container.querySelectorAll('.remove-tag-from-module-btn').forEach(btn => {
+btn.onclick = async () => {
+const fileId = btn.dataset.fileid;
+const tagToRemove = btn.dataset.tag;
+if (confirm(`確定要從模組中移除標籤 "${tagToRemove}" 嗎？`)) {
+document.getElementById('mask-status').innerText = 'REMOVING TAG...';
+document.getElementById('secure-mask').classList.remove('hidden-mask');
+await removeTagFromModule(fileId, tagToRemove);
+document.getElementById('secure-mask').classList.add('hidden-mask');
+renderTagsView(container);
+}
 };
 });
 }
 
 // ==========================================
-// 章節列表與多版次管理系統
+// 【新增】OUTLINE 角色模組表列式設定相關函數
+// ==========================================
+function getAllModulesByCategory() {
+const result = {};
+for (const catKey in state.moduleData) {
+result[catKey] = state.moduleData[catKey].map(m => ({ code: m.code, name: m.name, category: catKey }));
+}
+return result;
+}
+function getCategoryLabel(catKey) {
+if (!catKey) return '(未分類)';
+const catConfig = state.config.categories.find(c => c.key === catKey);
+return catConfig ? catConfig.label : catKey;
+}
+function getModuleName(moduleCode) {
+if (!moduleCode) return '(未選擇)';
+for (const catKey in state.moduleData) {
+const mod = state.moduleData[catKey].find(m => m.code === moduleCode);
+if (mod) return mod.name;
+}
+return moduleCode;
+}
+function ensureCharDataFormat(charData) {
+if (!charData) return { checked: false, moduleRows: [] };
+if (Array.isArray(charData.moduleRows)) { return charData; }
+charData.moduleRows = [];
+if (charData.settings && typeof charData.settings === 'object') {
+for (const key in charData.settings) {
+const s = charData.settings[key];
+if (s && (s.name || s.must || s.forbid)) {
+charData.moduleRows.push({
+id: 'row_legacy_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+category: key, moduleCode: s.name || '', mustExecute: s.must || '', forbid: s.forbid || '', reason: ''
+});
+}
+}
+}
+delete charData.settings;
+return charData;
+}
+function renderModuleRow(row, rowIdx, charId) {
+const allModulesByCategory = getAllModulesByCategory();
+const categoryOptions = Object.keys(allModulesByCategory).map(catKey => {
+const label = getCategoryLabel(catKey);
+const count = allModulesByCategory[catKey].length;
+return `<option value="${catKey}" ${row.category === catKey ? 'selected' : ''}>${label} (${count})</option>`;
+}).join('');
+const modsInCategory = allModulesByCategory[row.category] || [];
+const moduleOptions = modsInCategory.map(m =>
+`<option value="${m.code}" ${row.moduleCode === m.code ? 'selected' : ''}>${m.name} [${m.code}]</option>`
+).join('');
+return `
+<div class="module-row-card p-3 rounded-sm space-y-2 relative group">
+<div class="flex items-center justify-between mb-1">
+<div class="flex items-center gap-2">
+<span class="row-index">#${rowIdx + 1}</span>
+<span class="font-label-caps text-[9px] text-on-surface-variant">模組表列</span>
+</div>
+<button class="del-module-row-btn text-error hover:bg-error-container/20 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity" data-char="${charId}" data-rowidx="${rowIdx}" title="刪除此表列">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+<div class="space-y-1">
+<label class="font-label-caps text-[8px] text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[10px]">category</span> 模組類別
+</label>
+<select class="row-category-select w-full bg-surface border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px]" data-char="${charId}" data-rowidx="${rowIdx}">
+<option value="">(請選擇類別)</option>
+${categoryOptions}
+</select>
+</div>
+<div class="space-y-1">
+<label class="font-label-caps text-[8px] text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[10px]">extension</span> 選擇模組
+</label>
+<select class="row-module-select w-full bg-surface border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px]" data-char="${charId}" data-rowidx="${rowIdx}" ${!row.category ? 'disabled' : ''}>
+<option value="">${!row.category ? '(請先選擇類別)' : '(選擇模組)'}</option>
+${moduleOptions}
+</select>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+<div class="space-y-1">
+<label class="font-label-caps text-[8px] text-green-400 flex items-center gap-1">
+<span class="material-symbols-outlined text-[10px]">check_circle</span> MUST EXECUTE (強制執行)
+</label>
+<input type="text" class="row-must-input w-full bg-surface border border-green-900/30 text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px]" data-char="${charId}" data-rowidx="${rowIdx}" value="${(row.mustExecute || '').replace(/"/g, '&quot;')}" placeholder="例：冷酷說話、壓制怒火、聽聲辨位">
+</div>
+<div class="space-y-1">
+<label class="font-label-caps text-[8px] text-red-400 flex items-center gap-1">
+<span class="material-symbols-outlined text-[10px]">block</span> FORBID (禁止使用)
+</label>
+<input type="text" class="row-forbid-input w-full bg-surface border border-red-900/30 text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px]" data-char="${charId}" data-rowidx="${rowIdx}" value="${(row.forbid || '').replace(/"/g, '&quot;')}" placeholder="例：溫柔語氣、直視對方、精準射擊">
+</div>
+</div>
+<div class="space-y-1">
+<label class="font-label-caps text-[8px] text-primary-fixed-dim flex items-center gap-1">
+<span class="material-symbols-outlined text-[10px]">psychology</span> 模組使用原因 (Reason/Context) - AI 生成提示方向
+</label>
+<textarea class="row-reason-input w-full bg-surface border border-primary-container/30 text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px] min-h-[50px]" data-char="${charId}" data-rowidx="${rowIdx}" placeholder="例：葉辰右眼剛受傷失明，必須用冷酷和不耐煩來掩飾視覺缺陷...">${row.reason || ''}</textarea>
+</div>
+</div>
+`;
+}
+function calculateCreativeSpaceMargin(charData) {
+if (!charData) { return '<span class="creative-space-margin high"><span class="emoji">🟢</span> 100%</span>'; }
+charData = ensureCharDataFormat(charData);
+const rows = charData.moduleRows || [];
+const moduleCount = rows.filter(r => r.moduleCode).length;
+const strictConstraints = rows.filter(r => r.mustExecute || r.forbid).length;
+let percentage = 100 - (moduleCount * 10) - (strictConstraints * 5);
+percentage = Math.max(20, Math.min(100, percentage));
+let statusClass = 'medium';
+let emoji = '🟡';
+let statusText = '平衡';
+if (percentage >= 70) { statusClass = 'high'; emoji = '🟢'; statusText = '高度自由'; }
+else if (percentage <= 40) { statusClass = 'low'; emoji = '🔴'; statusText = '嚴格約束'; }
+return `<span class="creative-space-margin ${statusClass}" title="創作空間裕度：${statusText}\n模組數：${moduleCount}\n約束數：${strictConstraints}"><span class="emoji">${emoji}</span> ${percentage}%</span>`;
+}
+function renderOutlineView(container) {
+const book = getCurrentBook();
+if (!book) {
+container.innerHTML = `<div class="p-gutter text-center text-on-surface-variant py-10 font-data-md pb-40">⚠️ 請先在【Books】頁籤建立書籍並設定演員/場景總表，否則 Outline 將無法帶出實例。</div>`;
+return;
+}
+const d = state.outlineData;
+const tabNames = ["起", "承", "轉", "合"];
+let html = `
+<div class="p-gutter space-y-4 pb-40">
+<div class="bg-primary-container/10 border border-primary-container/30 p-2 rounded-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-fixed-dim text-[18px]">menu_book</span>
+<span class="font-data-md text-xs text-primary-fixed-dim">當前書籍：${book.title} | 風格：${book.style} | 段落字數限制：${book.paragraphWordCount}</span>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">章節編號</label><input type="text" id="chap-num" value="${d.chapter}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
+<div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">版次</label><input type="text" id="chap-ver" value="${d.version}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
+</div>
+<div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">本章核心事件</label><textarea id="core-event" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[60px]">${d.coreEvent}</textarea></div>
+<div class="space-y-1 border-b border-outline-variant pb-3"><label class="font-label-caps text-[10px] text-primary-fixed-dim">本章總結需求調整 (Summary Protocol)</label><textarea id="summary-req" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[60px]" placeholder="例：請提取角色隱性好感度變化...">${d.chapterSummaryRequirement}</textarea></div>
+<div class="flex border-b border-outline-variant">
+${tabNames.map((name, i) => `<button class="tab-btn flex-1 py-2 font-label-caps text-xs ${state.currentTab === i ? 'tab-active' : 'text-on-surface-variant'}" data-tab="${i}">【${name}】</button>`).join('')}
+</div>
+<div id="tab-content" class="space-y-4"></div>
+</div>
+`;
+container.innerHTML = html;
+document.getElementById('chap-num').oninput = (e) => d.chapter = e.target.value;
+document.getElementById('chap-ver').oninput = (e) => d.version = e.target.value;
+document.getElementById('core-event').oninput = (e) => d.coreEvent = e.target.value;
+document.getElementById('summary-req').oninput = (e) => d.chapterSummaryRequirement = e.target.value;
+document.querySelectorAll('.tab-btn').forEach(btn => { btn.onclick = () => { state.currentTab = parseInt(btn.dataset.tab); renderOutlineView(container); }; });
+renderTabContent();
+}
+function renderTabContent() {
+const tabContent = document.getElementById('tab-content');
+const tabData = state.outlineData.tabs[state.currentTab];
+const book = getCurrentBook();
+const scenes = book ? book.scenes : [];
+const chars = book ? book.actors : [];
+let html = '';
+if (state.currentTab === 0) {
+html += `<div class="space-y-1 border-b border-outline-variant pb-3 mb-3"><label class="font-label-caps text-[10px] text-primary-fixed-dim">前章總結參考依據 (Previous Summary)</label><textarea id="prev-summary" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]" placeholder="貼上或輸入上一章的總結快照...">${state.outlineData.previousSummary}</textarea></div>`;
+}
+html += `
+<div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">全局場景 (Instance)</label>
+<select id="scene-select" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-2 rounded-sm font-data-md text-sm">
+<option value="">(無)</option>
+${scenes.map(s => `<option value="${s.id}" ${tabData.scene === s.id ? 'selected' : ''}>${s.name} ${s.oopCode ? '['+s.oopCode+']' : ''}</option>`).join('')}
+</select>
+</div>
+<div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">HOOK承接詞 (Transition Hook)</label><input type="text" id="hook-input" value="${tabData.hook || ''}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm" placeholder="例：然而，他並未察覺暗處的視線..."></div>
+<div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">動作/劇情描述</label><textarea id="action-text" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]">${tabData.actionText}</textarea></div>
+<div class="space-y-2">
+<div class="flex justify-between items-center border-b border-outline-variant pb-2">
+<label class="font-label-caps text-[10px] text-on-surface-variant">出場人物 (Instances)</label>
+<span class="font-label-caps text-[8px] text-primary-fixed-dim">OUTLINE 表列設定優先級 > 全局 OOP 模組</span>
+</div>
+${chars.map(c => {
+if (!tabData.characters[c.id]) { tabData.characters[c.id] = { checked: false, moduleRows: [] }; }
+else { tabData.characters[c.id] = ensureCharDataFormat(tabData.characters[c.id]); }
+const charData = tabData.characters[c.id];
+return `
+<div class="glass-panel p-3 rounded-sm space-y-2">
+<label class="flex items-center gap-2 cursor-pointer">
+<input type="checkbox" class="char-check rounded text-primary-container" data-code="${c.id}" ${charData.checked ? 'checked' : ''}>
+<span class="font-data-md text-sm">${c.name} ${c.oopCode ? '['+c.oopCode+']' : ''}</span>
+${calculateCreativeSpaceMargin(charData)}
+</label>
+<div class="char-settings ${charData.checked ? '' : 'hidden'} space-y-3 pl-4 border-l-2 border-primary-container/30">
+<div class="flex justify-between items-center">
+<span class="font-label-caps text-[10px] text-primary-fixed-dim flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">table_rows</span>
+模組表列設定 (共 ${charData.moduleRows.length} 列)
+</span>
+<button class="add-module-row-btn bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:bg-primary-container/30 transition-colors" data-char="${c.id}">
+<span class="material-symbols-outlined text-[14px]">add</span> 新增表列
+</button>
+</div>
+<div class="module-rows-container space-y-2" data-char="${c.id}">
+${charData.moduleRows.length === 0 ? `
+<div class="text-xs text-on-surface-variant/50 p-3 border border-dashed border-outline-variant rounded-sm text-center">
+尚未設定模組表列，請點擊「新增表列」按鈕。<br>
+<span class="text-[9px]">每個表列可設定：模組類別、選擇模組、MUST EXECUTE、FORBID、模組使用原因</span>
+</div>
+` : charData.moduleRows.map((row, rowIdx) => renderModuleRow(row, rowIdx, c.id)).join('')}
+</div>
+</div>
+</div>
+`}).join('')}
+</div>
+<div class="pt-2 border-t border-outline-variant"><label class="font-label-caps text-[10px] text-on-surface-variant">段落設定繼承</label><div class="flex gap-2 mt-1"><select id="inherit-src" class="flex-1 bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-xs">${["起", "承", "轉", "合"].map((name, i) => i !== state.currentTab ? `<option value="${i}">從【${name}】帶入</option>` : '').join('')}</select><button id="inherit-btn" class="bg-surface-container-high text-on-surface px-3 py-1.5 rounded-sm font-label-caps text-xs border border-outline-variant">📥 帶入</button></div></div>
+`;
+tabContent.innerHTML = html;
+if (state.currentTab === 0) document.getElementById('prev-summary').oninput = (e) => state.outlineData.previousSummary = e.target.value;
+document.getElementById('scene-select').onchange = (e) => tabData.scene = e.target.value;
+document.getElementById('hook-input').oninput = (e) => tabData.hook = e.target.value;
+document.getElementById('action-text').oninput = (e) => tabData.actionText = e.target.value;
+tabContent.querySelectorAll('.char-check').forEach(cb => {
+cb.onchange = (e) => {
+const code = e.target.dataset.code;
+if (!tabData.characters[code]) { tabData.characters[code] = { checked: false, moduleRows: [] }; }
+tabData.characters[code] = ensureCharDataFormat(tabData.characters[code]);
+tabData.characters[code].checked = e.target.checked;
+renderTabContent();
+};
+});
+tabContent.querySelectorAll('.add-module-row-btn').forEach(btn => {
+btn.onclick = (e) => {
+const charId = e.currentTarget.dataset.char;
+if (!tabData.characters[charId]) { tabData.characters[charId] = { checked: true, moduleRows: [] }; }
+tabData.characters[charId] = ensureCharDataFormat(tabData.characters[charId]);
+tabData.characters[charId].moduleRows.push({
+id: 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+category: '', moduleCode: '', mustExecute: '', forbid: '', reason: ''
+});
+renderTabContent();
+};
+});
+tabContent.querySelectorAll('.del-module-row-btn').forEach(btn => {
+btn.onclick = (e) => {
+const charId = e.currentTarget.dataset.char;
+const rowIdx = parseInt(e.currentTarget.dataset.rowidx);
+if (confirm(`確定要刪除此模組表列 (#${rowIdx + 1}) 嗎？`)) {
+tabData.characters[charId].moduleRows.splice(rowIdx, 1);
+renderTabContent();
+}
+};
+});
+tabContent.querySelectorAll('.row-category-select').forEach(sel => {
+sel.onchange = (e) => {
+const charId = e.target.dataset.char;
+const rowIdx = parseInt(e.target.dataset.rowidx);
+tabData.characters[charId].moduleRows[rowIdx].category = e.target.value;
+tabData.characters[charId].moduleRows[rowIdx].moduleCode = '';
+renderTabContent();
+};
+});
+tabContent.querySelectorAll('.row-module-select').forEach(sel => {
+sel.onchange = (e) => {
+const charId = e.target.dataset.char;
+const rowIdx = parseInt(e.target.dataset.rowidx);
+tabData.characters[charId].moduleRows[rowIdx].moduleCode = e.target.value;
+updateCreativeSpaceMarginDisplay(charId);
+};
+});
+tabContent.querySelectorAll('.row-must-input').forEach(inp => {
+inp.oninput = (e) => {
+const charId = e.target.dataset.char;
+const rowIdx = parseInt(e.target.dataset.rowidx);
+tabData.characters[charId].moduleRows[rowIdx].mustExecute = e.target.value;
+updateCreativeSpaceMarginDisplay(charId);
+};
+});
+tabContent.querySelectorAll('.row-forbid-input').forEach(inp => {
+inp.oninput = (e) => {
+const charId = e.target.dataset.char;
+const rowIdx = parseInt(e.target.dataset.rowidx);
+tabData.characters[charId].moduleRows[rowIdx].forbid = e.target.value;
+updateCreativeSpaceMarginDisplay(charId);
+};
+});
+tabContent.querySelectorAll('.row-reason-input').forEach(ta => {
+ta.oninput = (e) => {
+const charId = e.target.dataset.char;
+const rowIdx = parseInt(e.target.dataset.rowidx);
+tabData.characters[charId].moduleRows[rowIdx].reason = e.target.value;
+};
+});
+document.getElementById('inherit-btn').onclick = () => {
+const srcIdx = parseInt(document.getElementById('inherit-src').value);
+const srcTab = state.outlineData.tabs[srcIdx];
+tabData.scene = srcTab.scene;
+tabData.hook = srcTab.hook;
+tabData.actionText = srcTab.actionText;
+tabData.characters = JSON.parse(JSON.stringify(srcTab.characters));
+renderTabContent();
+};
+}
+function updateCreativeSpaceMarginDisplay(charId) {
+const tabData = state.outlineData.tabs[state.currentTab];
+const charData = tabData.characters[charId];
+if (!charData) return;
+const tabContent = document.getElementById('tab-content');
+const charCheckboxes = tabContent.querySelectorAll('.char-check');
+charCheckboxes.forEach(cb => {
+if (cb.dataset.code === charId) {
+const label = cb.closest('label');
+const existingMargin = label.querySelector('.creative-space-margin');
+if (existingMargin) { existingMargin.outerHTML = calculateCreativeSpaceMargin(charData); }
+}
+});
+}
+function renderTriggersView(container) {
+const prompts = state.config.prompts || { "AUDIT": "【自我審計協議】\n請執行自我審計，檢查上述生成內容是否違反當前生效模組。" };
+const book = getCurrentBook();
+container.innerHTML = `
+<div class="p-gutter space-y-4 pb-40">
+<h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">自我思維觸發器</h2>
+<div class="grid grid-cols-2 gap-2">
+${Object.keys(prompts).map(key => `<button class="trigger-btn bg-surface-container-high text-on-surface p-3 rounded-sm font-label-caps text-[10px] border border-outline-variant flex flex-col items-center gap-1 active:bg-surface-bright" data-prompt="${key}"><span class="material-symbols-outlined text-primary-fixed-dim">psychology</span>${key}</button>`).join('')}
+</div>
+<h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2 mt-6">大綱預覽與導出</h2>
+<div class="glass-panel p-3 rounded-sm"><pre id="outline-preview" class="font-data-md text-[10px] text-on-surface-variant whitespace-pre-wrap max-h-[300px] overflow-y-auto"></pre></div>
+<div class="grid grid-cols-2 gap-2">
+<button id="refresh-preview" class="bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">🔄 更新預覽</button>
+<button id="copy-outline" class="bg-primary-container text-on-primary-fixed py-2 rounded-sm font-label-caps text-xs flex items-center justify-center gap-1 cyan-glow"><span class="material-symbols-outlined text-[16px]">content_copy</span> 複製全部大綱</button>
+</div>
+</div>
+`;
+document.querySelectorAll('.trigger-btn').forEach(btn => { btn.onclick = () => { navigator.clipboard.writeText(prompts[btn.dataset.prompt]); alert(`已複製 ${btn.dataset.prompt} 觸發器指令！`); }; });
+document.getElementById('refresh-preview').onclick = () => { document.getElementById('outline-preview').innerText = generateOutline(); };
+document.getElementById('copy-outline').onclick = () => { navigator.clipboard.writeText(generateOutline()); alert('大綱已複製到剪貼簿！'); };
+document.getElementById('outline-preview').innerText = generateOutline();
+}
+function generateOutline() {
+const d = state.outlineData;
+const book = getCurrentBook();
+let outline = `[CHAPTER_${d.chapter}_${d.version}]\n`;
+if (book) outline += `[BOOK_META]: 書名《${book.title}》 | 風格：${book.style} | 段落字數限制：${book.paragraphWordCount}字\n`;
+if (d.previousSummary) outline += `### 前章總結參考依據\n${d.previousSummary}\n`;
+outline += `### 本章核心事件\n${d.coreEvent}\n`;
+if (d.chapterSummaryRequirement) outline += `### 本章總結需求調整\n${d.chapterSummaryRequirement}\n`;
+const tabNames = ["起", "承", "轉", "合"];
+for (let i = 0; i < 4; i++) {
+const tab = d.tabs[i];
+outline += `【${tabNames[i]}】\n`;
+const sceneObj = book ? book.scenes.find(s => s.id === tab.scene) : null;
+if (sceneObj) outline += `- 全局場景：${sceneObj.name} ${sceneObj.oopCode ? '['+sceneObj.oopCode+']' : ''}\n`;
+if (tab.hook) outline += `- HOOK承接詞：${tab.hook}\n`;
+outline += "- 出場人物:\n";
+let hasChars = false;
+for (const charId in tab.characters) {
+const charData = ensureCharDataFormat(tab.characters[charId]);
+const charObj = book ? book.actors.find(a => a.id === charId) : null;
+if (charData.checked && charObj) {
+hasChars = true;
+outline += `  - [${charObj.name}] ${charObj.oopCode ? '['+charObj.oopCode+']' : ''}:\n`;
+if (charObj.linkedModules && charObj.linkedModules.length > 0) {
+outline += `    - OOP 模組關聯 (Templates - 全局基礎設定):\n`;
+charObj.linkedModules.forEach(modCode => {
+let modName = modCode;
+for (const catKey in state.moduleData) {
+const mod = state.moduleData[catKey].find(m => m.code === modCode);
+if (mod) { modName = mod.name; break; }
+}
+outline += `      - ${modName} [${modCode}]\n`;
+});
+}
+if (charData.moduleRows && charData.moduleRows.length > 0) {
+outline += `    - OUTLINE 模組表列設定 (優先級 > 全局 OOP):\n`;
+charData.moduleRows.forEach((row, idx) => {
+const catLabel = getCategoryLabel(row.category);
+const modName = getModuleName(row.moduleCode);
+outline += `      - [表列 ${idx + 1}] 類別: ${catLabel}`;
+if (row.moduleCode) { outline += ` | 模組: ${modName} [${row.moduleCode}]`; }
+outline += `\n`;
+if (row.mustExecute) outline += `        - MUST EXECUTE: ${row.mustExecute}\n`;
+if (row.forbid) outline += `        - FORBID: ${row.forbid}\n`;
+if (row.reason) outline += `        - REASON (AI 生成提示方向): ${row.reason}\n`;
+});
+}
+}
+}
+if (!hasChars) outline += "  - (無)\n";
+if (tab.actionText) outline += `- 全局動作描述：${tab.actionText}\n`;
+outline += "\n";
+}
+outline += `[SYSTEM_INSTRUCTION]: 請根據上述大綱與 OOP 實例模組生成正文。注意：OUTLINE 表列設定的優先級高於全局 OOP 模組，必須嚴格遵守。請根據 REASON 欄位理解每個模組的使用原因，將其轉化為角色的潛台詞與微表情（Show, don't tell）。嚴格遵守段落字數限制，並在文末嚴格按照 <sd_prompt> 格式輸出帶權重的視覺提示詞。`;
+return outline;
+}
+
+// ==========================================
+// 【新增】章節列表與多版次管理系統
 // ==========================================
 function normalizeChapter(chapter) {
 if (!chapter.sections) {
@@ -1486,10 +2063,8 @@ const vId = editor.dataset.vid;
 const sectionKey = editor.dataset.section;
 const list = editor.closest('.version-list');
 const cIdx = parseInt(list.dataset.cidx);
-
 const section = book.chapters[cIdx].sections[sectionKey];
 const version = section.versions.find(v => v.id === vId);
-
 if (version) {
 if (ta.classList.contains('version-outline-input')) {
 version.outline = e.target.value;
@@ -1498,7 +2073,6 @@ version.content = e.target.value;
 }
 }
 };
-
 ta.onblur = (e) => {
 const editor = ta.closest('.version-editor');
 const vId = editor.dataset.vid;
@@ -1507,7 +2081,6 @@ const list = editor.closest('.version-list');
 const cIdx = parseInt(list.dataset.cidx);
 const section = book.chapters[cIdx].sections[sectionKey];
 const version = section.versions.find(v => v.id === vId);
-
 if (version) {
 if (ta.classList.contains('version-outline-input')) {
 version.outline = e.target.value;
@@ -1520,394 +2093,86 @@ saveBooksData();
 });
 }
 
-function getAllModulesByCategory() {
-const result = {};
-for (const catKey in state.moduleData) {
-result[catKey] = state.moduleData[catKey].map(m => ({ code: m.code, name: m.name, category: catKey }));
+function openAddModuleModal(idx, list, allAvailableModules) {
+const modal = document.getElementById('modal-container');
+modal.innerHTML = `
+<div class="modal-overlay">
+<div class="bg-surface border border-outline-variant rounded-sm w-full max-w-lg max-h-[80vh] flex flex-col">
+<div class="p-4 border-b border-outline-variant flex justify-between items-center">
+<div class="font-label-caps text-xs text-primary-fixed-dim">選擇模組進行關聯</div>
+<button id="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button>
+</div>
+<div class="flex-1 overflow-y-auto p-4 space-y-2">
+${allAvailableModules.map(m => `
+<div class="flex justify-between items-center p-2 bg-surface-container-high rounded-sm border border-outline-variant/50 hover:bg-surface-container-highest transition-colors">
+<div>
+<div class="font-data-md text-sm text-on-surface">${m.name}</div>
+<div class="font-label-caps text-[8px] text-outline uppercase">${m.code}</div>
+</div>
+<button class="add-single-mod-btn bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm text-[10px]" data-code="${m.code}">添加</button>
+</div>
+`).join('')}
+</div>
+</div>
+</div>
+`;
+modal.classList.remove('hidden');
+document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
+modal.querySelectorAll('.add-single-mod-btn').forEach(btn => {
+btn.onclick = () => {
+syncActorSceneInputs();
+const code = btn.dataset.code;
+if (!list[idx].linkedModules.includes(code)) {
+list[idx].linkedModules.push(code);
 }
-return result;
-}
-function getCategoryLabel(catKey) {
-if (!catKey) return '(未分類)';
-const catConfig = state.config.categories.find(c => c.key === catKey);
-return catConfig ? catConfig.label : catKey;
-}
-function getModuleName(moduleCode) {
-if (!moduleCode) return '(未選擇)';
-for (const catKey in state.moduleData) {
-const mod = state.moduleData[catKey].find(m => m.code === moduleCode);
-if (mod) return mod.name;
-}
-return moduleCode;
-}
-function ensureCharDataFormat(charData) {
-if (!charData) return { checked: false, moduleRows: [] };
-if (Array.isArray(charData.moduleRows)) return charData;
-charData.moduleRows = [];
-if (charData.settings && typeof charData.settings === 'object') {
-for (const key in charData.settings) {
-const s = charData.settings[key];
-if (s && (s.name || s.must || s.forbid)) {
-charData.moduleRows.push({
-id: 'row_legacy_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-category: key, moduleCode: s.name || '', mustExecute: s.must || '', forbid: s.forbid || '', reason: ''
+modal.classList.add('hidden');
+renderBookTabContent();
+};
 });
 }
-}
-}
-delete charData.settings;
-return charData;
-}
-function renderModuleRow(row, rowIdx, charId) {
-const allModulesByCategory = getAllModulesByCategory();
-const categoryOptions = Object.keys(allModulesByCategory).map(catKey => {
-const label = getCategoryLabel(catKey);
-const count = allModulesByCategory[catKey].length;
-return `<option value="${catKey}" ${row.category === catKey ? 'selected' : ''}>${label} (${count})</option>`;
-}).join('');
-const modsInCategory = allModulesByCategory[row.category] || [];
-const moduleOptions = modsInCategory.map(m =>
-`<option value="${m.code}" ${row.moduleCode === m.code ? 'selected' : ''}>${m.name} [${m.code}]</option>`
-).join('');
-return `
-<div class="module-row-card p-3 rounded-sm space-y-2 relative group">
-<div class="flex items-center justify-between mb-1">
-<div class="flex items-center gap-2">
-<span class="row-index">#${rowIdx + 1}</span>
-<span class="font-label-caps text-[9px] text-on-surface-variant">模組表列</span>
-</div>
-<button class="del-module-row-btn text-error hover:bg-error-container/20 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity" data-char="${charId}" data-rowidx="${rowIdx}" title="刪除此表列">
-<span class="material-symbols-outlined text-[16px]">delete</span>
-</button>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-<div class="space-y-1">
-<label class="font-label-caps text-[8px] text-on-surface-variant flex items-center gap-1">
-<span class="material-symbols-outlined text-[10px]">category</span> 模組類別
-</label>
-<select class="row-category-select w-full bg-surface border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px]" data-char="${charId}" data-rowidx="${rowIdx}">
-<option value="">(請選擇類別)</option>
-${categoryOptions}
-</select>
-</div>
-<div class="space-y-1">
-<label class="font-label-caps text-[8px] text-on-surface-variant flex items-center gap-1">
-<span class="material-symbols-outlined text-[10px]">extension</span> 選擇模組
-</label>
-<select class="row-module-select w-full bg-surface border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px]" data-char="${charId}" data-rowidx="${rowIdx}" ${!row.category ? 'disabled' : ''}>
-<option value="">${!row.category ? '(請先選擇類別)' : '(選擇模組)'}</option>
-${moduleOptions}
-</select>
-</div>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-<div class="space-y-1">
-<label class="font-label-caps text-[8px] text-green-400 flex items-center gap-1">
-<span class="material-symbols-outlined text-[10px]">check_circle</span> MUST EXECUTE (強制執行)
-</label>
-<input type="text" class="row-must-input w-full bg-surface border border-green-900/30 text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px]" data-char="${charId}" data-rowidx="${rowIdx}" value="${(row.mustExecute || '').replace(/"/g, '&quot;')}" placeholder="例：冷酷說話、壓制怒火、聽聲辨位">
-</div>
-<div class="space-y-1">
-<label class="font-label-caps text-[8px] text-red-400 flex items-center gap-1">
-<span class="material-symbols-outlined text-[10px]">block</span> FORBID (禁止使用)
-</label>
-<input type="text" class="row-forbid-input w-full bg-surface border border-red-900/30 text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px]" data-char="${charId}" data-rowidx="${rowIdx}" value="${(row.forbid || '').replace(/"/g, '&quot;')}" placeholder="例：溫柔語氣、直視對方、精準射擊">
-</div>
-</div>
-<div class="space-y-1">
-<label class="font-label-caps text-[8px] text-primary-fixed-dim flex items-center gap-1">
-<span class="material-symbols-outlined text-[10px]">psychology</span> 模組使用原因 (Reason/Context) - AI 生成提示方向
-</label>
-<textarea class="row-reason-input w-full bg-surface border border-primary-container/30 text-on-surface px-2 py-1.5 rounded-sm font-data-md text-[10px] min-h-[50px]" data-char="${charId}" data-rowidx="${rowIdx}" placeholder="例：葉辰右眼剛受傷失明，必須用冷酷和不耐煩來掩飾視覺缺陷...">${row.reason || ''}</textarea>
-</div>
-</div>
-`;
-}
-function calculateCreativeSpaceMargin(charData) {
-if (!charData) return '<span class="creative-space-margin high"><span class="emoji">🟢</span> 100%</span>';
-charData = ensureCharDataFormat(charData);
-const rows = charData.moduleRows || [];
-const moduleCount = rows.filter(r => r.moduleCode).length;
-const strictConstraints = rows.filter(r => r.mustExecute || r.forbid).length;
-let percentage = 100 - (moduleCount * 10) - (strictConstraints * 5);
-percentage = Math.max(20, Math.min(100, percentage));
-let statusClass = 'medium';
-let emoji = '';
-let statusText = '平衡';
-if (percentage >= 70) { statusClass = 'high'; emoji = '🟢'; statusText = '高度自由'; }
-else if (percentage <= 40) { statusClass = 'low'; emoji = '🔴'; statusText = '嚴格約束'; }
-return `<span class="creative-space-margin ${statusClass}" title="創作空間裕度：${statusText}\n模組數：${moduleCount}\n約束數：${strictConstraints}"><span class="emoji">${emoji}</span> ${percentage}%</span>`;
-}
-function renderOutlineView(container) {
-const book = getCurrentBook();
-if (!book) {
-container.innerHTML = `<div class="p-gutter text-center text-on-surface-variant py-10 font-data-md pb-40">⚠️ 請先在【Books】頁籤建立書籍並設定演員/場景總表，否則 Outline 將無法帶出實例。</div>`;
-return;
-}
-const d = state.outlineData;
-const tabNames = ["起", "承", "轉", "合"];
-let html = `
-<div class="p-gutter space-y-4 pb-40">
-<div class="bg-primary-container/10 border border-primary-container/30 p-2 rounded-sm flex items-center gap-2">
-<span class="material-symbols-outlined text-primary-fixed-dim text-[18px]">menu_book</span>
-<span class="font-data-md text-xs text-primary-fixed-dim">當前書籍：${book.title} | 風格：${book.style} | 段落字數限制：${book.paragraphWordCount}</span>
-</div>
-<div class="grid grid-cols-2 gap-2">
-<div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">章節編號</label><input type="text" id="chap-num" value="${d.chapter}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
-<div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">版次</label><input type="text" id="chap-ver" value="${d.version}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm"></div>
-</div>
-<div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">本章核心事件</label><textarea id="core-event" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[60px]">${d.coreEvent}</textarea></div>
-<div class="space-y-1 border-b border-outline-variant pb-3"><label class="font-label-caps text-[10px] text-primary-fixed-dim">本章總結需求調整 (Summary Protocol)</label><textarea id="summary-req" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[60px]" placeholder="例：請提取角色隱性好感度變化...">${d.chapterSummaryRequirement}</textarea></div>
-<div class="flex border-b border-outline-variant">
-${tabNames.map((name, i) => `<button class="tab-btn flex-1 py-2 font-label-caps text-xs ${state.currentTab === i ? 'tab-active' : 'text-on-surface-variant'}" data-tab="${i}">【${name}】</button>`).join('')}
-</div>
-<div id="tab-content" class="space-y-4"></div>
-</div>
-`;
-container.innerHTML = html;
-document.getElementById('chap-num').oninput = (e) => d.chapter = e.target.value;
-document.getElementById('chap-ver').oninput = (e) => d.version = e.target.value;
-document.getElementById('core-event').oninput = (e) => d.coreEvent = e.target.value;
-document.getElementById('summary-req').oninput = (e) => d.chapterSummaryRequirement = e.target.value;
-document.querySelectorAll('.tab-btn').forEach(btn => { btn.onclick = () => { state.currentTab = parseInt(btn.dataset.tab); renderOutlineView(container); }; });
-renderTabContent();
-}
-function renderTabContent() {
-const tabContent = document.getElementById('tab-content');
-const tabData = state.outlineData.tabs[state.currentTab];
-const book = getCurrentBook();
-const scenes = book ? book.scenes : [];
-const chars = book ? book.actors : [];
-let html = '';
-if (state.currentTab === 0) {
-html += `<div class="space-y-1 border-b border-outline-variant pb-3 mb-3"><label class="font-label-caps text-[10px] text-primary-fixed-dim">前章總結參考依據 (Previous Summary)</label><textarea id="prev-summary" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]" placeholder="貼上或輸入上一章的總結快照...">${state.outlineData.previousSummary}</textarea></div>`;
-}
-html += `
-<div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">全局場景 (Instance)</label>
-<select id="scene-select" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-2 rounded-sm font-data-md text-sm">
-<option value="">(無)</option>
-${scenes.map(s => `<option value="${s.id}" ${tabData.scene === s.id ? 'selected' : ''}>${s.name} ${s.oopCode ? '['+s.oopCode+']' : ''}</option>`).join('')}
-</select>
-</div>
-<div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">HOOK承接詞 (Transition Hook)</label><input type="text" id="hook-input" value="${tabData.hook || ''}" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm" placeholder="例：然而，他並未察覺暗處的視線..."></div>
-<div class="space-y-1"><label class="font-label-caps text-[10px] text-on-surface-variant">動作/劇情描述</label><textarea id="action-text" class="w-full bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-sm min-h-[80px]">${tabData.actionText}</textarea></div>
+function openAutolinkModal(idx, list, allAvailableModules) {
+const item = list[idx];
+const desc = item.description || item.name;
+if (!desc) { alert("請先填寫「角色/場景描述」，AI 需要依據描述來推薦模組！"); return; }
+const modListStr = allAvailableModules.map(m => `- ${m.code} : ${m.name}`).join('\n');
+const promptText = `【天道流 AUTOLINK 推薦請求】\n角色/場景描述：${desc}\n當前可用模組庫：\n${modListStr}\n任務：請根據描述，從模組庫中推薦最合適的模組代碼（一對多關聯）。\n請嚴格返回 JSON 陣列格式，例如：["CHAR_A_BASE", "MOD_PERSONA_COLD"]。\n不要返回其他內容，只返回 JSON。`;
+const modal = document.getElementById('modal-container');
+modal.innerHTML = `
+<div class="modal-overlay">
+<div class="bg-surface border border-outline-variant rounded-sm w-full max-w-2xl p-6 space-y-4">
+<h3 class="font-label-caps text-sm text-primary-fixed-dim">✨ AUTOLINK 智能推薦</h3>
 <div class="space-y-2">
-<div class="flex justify-between items-center border-b border-outline-variant pb-2">
-<label class="font-label-caps text-[10px] text-on-surface-variant">出場人物 (Instances)</label>
-<span class="font-label-caps text-[8px] text-primary-fixed-dim">OUTLINE 表列設定優先級 > 全局 OOP 模組</span>
+<label class="text-xs text-on-surface-variant">步驟 1：複製以下提示詞發送給 LLM</label>
+<textarea readonly class="w-full bg-black/30 text-on-surface p-2 rounded text-xs h-32 font-mono">${promptText}</textarea>
+<button id="copy-prompt-btn" class="bg-surface-container-high text-on-surface px-3 py-1 rounded text-xs">複製提示詞</button>
 </div>
-${chars.map(c => {
-if (!tabData.characters[c.id]) tabData.characters[c.id] = { checked: false, moduleRows: [] };
-else tabData.characters[c.id] = ensureCharDataFormat(tabData.characters[c.id]);
-const charData = tabData.characters[c.id];
-return `
-<div class="glass-panel p-3 rounded-sm space-y-2">
-<label class="flex items-center gap-2 cursor-pointer">
-<input type="checkbox" class="char-check rounded text-primary-container" data-code="${c.id}" ${charData.checked ? 'checked' : ''}>
-<span class="font-data-md text-sm">${c.name} ${c.oopCode ? '['+c.oopCode+']' : ''}</span>
-${calculateCreativeSpaceMargin(charData)}
-</label>
-<div class="char-settings ${charData.checked ? '' : 'hidden'} space-y-3 pl-4 border-l-2 border-primary-container/30">
-<div class="flex justify-between items-center">
-<span class="font-label-caps text-[10px] text-primary-fixed-dim flex items-center gap-1">
-<span class="material-symbols-outlined text-[14px]">table_rows</span>
-模組表列設定 (共 ${charData.moduleRows.length} 列)
-</span>
-<button class="add-module-row-btn bg-primary-container/20 text-primary-fixed-dim px-2 py-1 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:bg-primary-container/30 transition-colors" data-char="${c.id}">
-<span class="material-symbols-outlined text-[14px]">add</span> 新增表列
-</button>
+<div class="space-y-2">
+<label class="text-xs text-on-surface-variant">步驟 2：將 LLM 返回的 JSON 結果貼上</label>
+<textarea id="autolink-result-input" class="w-full bg-black/30 text-on-surface p-2 rounded text-xs h-20 font-mono" placeholder='例如：["CHAR_A_BASE", "MOD_PERSONA_COLD"]'></textarea>
 </div>
-<div class="module-rows-container space-y-2" data-char="${c.id}">
-${charData.moduleRows.length === 0 ? `
-<div class="text-xs text-on-surface-variant/50 p-3 border border-dashed border-outline-variant rounded-sm text-center">
-尚未設定模組表列，請點擊「新增表列」按鈕。<br>
-<span class="text-[9px]">每個表列可設定：模組類別、選擇模組、MUST EXECUTE、FORBID、模組使用原因</span>
+<div class="flex justify-end gap-2 pt-2">
+<button id="close-autolink-btn" class="bg-surface-container-high text-on-surface px-4 py-2 rounded text-xs">取消</button>
+<button id="apply-autolink-btn" class="bg-primary-container text-on-primary-fixed px-4 py-2 rounded text-xs">載入並套用</button>
 </div>
-` : charData.moduleRows.map((row, rowIdx) => renderModuleRow(row, rowIdx, c.id)).join('')}
-</div>
-</div>
-</div>
-`}).join('')}
-</div>
-<div class="pt-2 border-t border-outline-variant"><label class="font-label-caps text-[10px] text-on-surface-variant">段落設定繼承</label><div class="flex gap-2 mt-1"><select id="inherit-src" class="flex-1 bg-surface-container-high border border-outline text-on-surface px-2 py-1.5 rounded-sm font-data-md text-xs">${["起", "承", "轉", "合"].map((name, i) => i !== state.currentTab ? `<option value="${i}">從【${name}】帶入</option>` : '').join('')}</select><button id="inherit-btn" class="bg-surface-container-high text-on-surface px-3 py-1.5 rounded-sm font-label-caps text-xs border border-outline-variant"> 帶入</button></div></div>
-`;
-tabContent.innerHTML = html;
-if (state.currentTab === 0) document.getElementById('prev-summary').oninput = (e) => state.outlineData.previousSummary = e.target.value;
-document.getElementById('scene-select').onchange = (e) => tabData.scene = e.target.value;
-document.getElementById('hook-input').oninput = (e) => tabData.hook = e.target.value;
-document.getElementById('action-text').oninput = (e) => tabData.actionText = e.target.value;
-tabContent.querySelectorAll('.char-check').forEach(cb => {
-cb.onchange = (e) => {
-const code = e.target.dataset.code;
-if (!tabData.characters[code]) tabData.characters[code] = { checked: false, moduleRows: [] };
-tabData.characters[code] = ensureCharDataFormat(tabData.characters[code]);
-tabData.characters[code].checked = e.target.checked;
-renderTabContent();
-};
-});
-tabContent.querySelectorAll('.add-module-row-btn').forEach(btn => {
-btn.onclick = (e) => {
-const charId = e.currentTarget.dataset.char;
-if (!tabData.characters[charId]) tabData.characters[charId] = { checked: true, moduleRows: [] };
-tabData.characters[charId] = ensureCharDataFormat(tabData.characters[charId]);
-tabData.characters[charId].moduleRows.push({
-id: 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-category: '', moduleCode: '', mustExecute: '', forbid: '', reason: ''
-});
-renderTabContent();
-};
-});
-tabContent.querySelectorAll('.del-module-row-btn').forEach(btn => {
-btn.onclick = (e) => {
-const charId = e.currentTarget.dataset.char;
-const rowIdx = parseInt(e.currentTarget.dataset.rowidx);
-if (confirm(`確定要刪除此模組表列 (#${rowIdx + 1}) 嗎？`)) {
-tabData.characters[charId].moduleRows.splice(rowIdx, 1);
-renderTabContent();
-}
-};
-});
-tabContent.querySelectorAll('.row-category-select').forEach(sel => {
-sel.onchange = (e) => {
-const charId = e.target.dataset.char;
-const rowIdx = parseInt(e.target.dataset.rowidx);
-tabData.characters[charId].moduleRows[rowIdx].category = e.target.value;
-tabData.characters[charId].moduleRows[rowIdx].moduleCode = '';
-renderTabContent();
-};
-});
-tabContent.querySelectorAll('.row-module-select').forEach(sel => {
-sel.onchange = (e) => {
-const charId = e.target.dataset.char;
-const rowIdx = parseInt(e.target.dataset.rowidx);
-tabData.characters[charId].moduleRows[rowIdx].moduleCode = e.target.value;
-updateCreativeSpaceMarginDisplay(charId);
-};
-});
-tabContent.querySelectorAll('.row-must-input').forEach(inp => {
-inp.oninput = (e) => {
-const charId = e.target.dataset.char;
-const rowIdx = parseInt(e.target.dataset.rowidx);
-tabData.characters[charId].moduleRows[rowIdx].mustExecute = e.target.value;
-updateCreativeSpaceMarginDisplay(charId);
-};
-});
-tabContent.querySelectorAll('.row-forbid-input').forEach(inp => {
-inp.oninput = (e) => {
-const charId = e.target.dataset.char;
-const rowIdx = parseInt(e.target.dataset.rowidx);
-tabData.characters[charId].moduleRows[rowIdx].forbid = e.target.value;
-updateCreativeSpaceMarginDisplay(charId);
-};
-});
-tabContent.querySelectorAll('.row-reason-input').forEach(ta => {
-ta.oninput = (e) => {
-const charId = e.target.dataset.char;
-const rowIdx = parseInt(e.target.dataset.rowidx);
-tabData.characters[charId].moduleRows[rowIdx].reason = e.target.value;
-};
-});
-document.getElementById('inherit-btn').onclick = () => {
-const srcIdx = parseInt(document.getElementById('inherit-src').value);
-const srcTab = state.outlineData.tabs[srcIdx];
-tabData.scene = srcTab.scene;
-tabData.hook = srcTab.hook;
-tabData.actionText = srcTab.actionText;
-tabData.characters = JSON.parse(JSON.stringify(srcTab.characters));
-renderTabContent();
-};
-}
-function updateCreativeSpaceMarginDisplay(charId) {
-const tabData = state.outlineData.tabs[state.currentTab];
-const charData = tabData.characters[charId];
-if (!charData) return;
-const tabContent = document.getElementById('tab-content');
-const charCheckboxes = tabContent.querySelectorAll('.char-check');
-charCheckboxes.forEach(cb => {
-if (cb.dataset.code === charId) {
-const label = cb.closest('label');
-const existingMargin = label.querySelector('.creative-space-margin');
-if (existingMargin) existingMargin.outerHTML = calculateCreativeSpaceMargin(charData);
-}
-});
-}
-function renderTriggersView(container) {
-const prompts = state.config.prompts || { "AUDIT": "【自我審計協議】\n請執行自我審計，檢查上述生成內容是否違反當前生效模組。" };
-const book = getCurrentBook();
-container.innerHTML = `
-<div class="p-gutter space-y-4 pb-40">
-<h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2">自我思維觸發器</h2>
-<div class="grid grid-cols-2 gap-2">
-${Object.keys(prompts).map(key => `<button class="trigger-btn bg-surface-container-high text-on-surface p-3 rounded-sm font-label-caps text-[10px] border border-outline-variant flex flex-col items-center gap-1 active:bg-surface-bright" data-prompt="${key}"><span class="material-symbols-outlined text-primary-fixed-dim">psychology</span>${key}</button>`).join('')}
-</div>
-<h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2 mt-6">大綱預覽與導出</h2>
-<div class="glass-panel p-3 rounded-sm"><pre id="outline-preview" class="font-data-md text-[10px] text-on-surface-variant whitespace-pre-wrap max-h-[300px] overflow-y-auto"></pre></div>
-<div class="grid grid-cols-2 gap-2">
-<button id="refresh-preview" class="bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant"> 更新預覽</button>
-<button id="copy-outline" class="bg-primary-container text-on-primary-fixed py-2 rounded-sm font-label-caps text-xs flex items-center justify-center gap-1 cyan-glow"><span class="material-symbols-outlined text-[16px]">content_copy</span> 複製全部大綱</button>
 </div>
 </div>
 `;
-document.querySelectorAll('.trigger-btn').forEach(btn => { btn.onclick = () => { navigator.clipboard.writeText(prompts[btn.dataset.prompt]); alert(`已複製 ${btn.dataset.prompt} 觸發器指令！`); }; });
-document.getElementById('refresh-preview').onclick = () => { document.getElementById('outline-preview').innerText = generateOutline(); };
-document.getElementById('copy-outline').onclick = () => { navigator.clipboard.writeText(generateOutline()); alert('大綱已複製到剪貼簿！'); };
-document.getElementById('outline-preview').innerText = generateOutline();
-}
-function generateOutline() {
-const d = state.outlineData;
-const book = getCurrentBook();
-let outline = `[CHAPTER_${d.chapter}_${d.version}]\n`;
-if (book) outline += `[BOOK_META]: 書名《${book.title}》 | 風格：${book.style} | 段落字數限制：${book.paragraphWordCount}字\n`;
-if (d.previousSummary) outline += `### 前章總結參考依據\n${d.previousSummary}\n`;
-outline += `### 本章核心事件\n${d.coreEvent}\n`;
-if (d.chapterSummaryRequirement) outline += `### 本章總結需求調整\n${d.chapterSummaryRequirement}\n`;
-const tabNames = ["起", "承", "轉", "合"];
-for (let i = 0; i < 4; i++) {
-const tab = d.tabs[i];
-outline += `【${tabNames[i]}】\n`;
-const sceneObj = book ? book.scenes.find(s => s.id === tab.scene) : null;
-if (sceneObj) outline += `- 全局場景：${sceneObj.name} ${sceneObj.oopCode ? '['+sceneObj.oopCode+']' : ''}\n`;
-if (tab.hook) outline += `- HOOK承接詞：${tab.hook}\n`;
-outline += "- 出場人物:\n";
-let hasChars = false;
-for (const charId in tab.characters) {
-const charData = ensureCharDataFormat(tab.characters[charId]);
-const charObj = book ? book.actors.find(a => a.id === charId) : null;
-if (charData.checked && charObj) {
-hasChars = true;
-outline += `  - [${charObj.name}] ${charObj.oopCode ? '['+charObj.oopCode+']' : ''}:\n`;
-if (charObj.linkedModules && charObj.linkedModules.length > 0) {
-outline += `    - OOP 模組關聯 (Templates - 全局基礎設定):\n`;
-charObj.linkedModules.forEach(modCode => {
-let modName = modCode;
-for (const catKey in state.moduleData) {
-const mod = state.moduleData[catKey].find(m => m.code === modCode);
-if (mod) { modName = mod.name; break; }
-}
-outline += `      - ${modName} [${modCode}]\n`;
-});
-}
-if (charData.moduleRows && charData.moduleRows.length > 0) {
-outline += `    - OUTLINE 模組表列設定 (優先級 > 全局 OOP):\n`;
-charData.moduleRows.forEach((row, idx) => {
-const catLabel = getCategoryLabel(row.category);
-const modName = getModuleName(row.moduleCode);
-outline += `      - [表列 ${idx + 1}] 類別: ${catLabel}`;
-if (row.moduleCode) outline += ` | 模組: ${modName} [${row.moduleCode}]`;
-outline += `\n`;
-if (row.mustExecute) outline += `        - MUST EXECUTE: ${row.mustExecute}\n`;
-if (row.forbid) outline += `        - FORBID: ${row.forbid}\n`;
-if (row.reason) outline += `        - REASON (AI 生成提示方向): ${row.reason}\n`;
-});
-}
-}
-}
-if (!hasChars) outline += "  - (無)\n";
-if (tab.actionText) outline += `- 全局動作描述：${tab.actionText}\n`;
-outline += "\n";
-}
-outline += `[SYSTEM_INSTRUCTION]: 請根據上述大綱與 OOP 實例模組生成正文。注意：OUTLINE 表列設定的優先級高於全局 OOP 模組，必須嚴格遵守。請根據 REASON 欄位理解每個模組的使用原因，將其轉化為角色的潛台詞與微表情（Show, don't tell）。嚴格遵守段落字數限制，並在文末嚴格按照 <sd_prompt> 格式輸出帶權重的視覺提示詞。`;
-return outline;
+modal.classList.remove('hidden');
+document.getElementById('copy-prompt-btn').onclick = () => { navigator.clipboard.writeText(promptText); alert('提示詞已複製！請去 LLM 對話框貼上並取得結果。'); };
+document.getElementById('close-autolink-btn').onclick = () => modal.classList.add('hidden');
+document.getElementById('apply-autolink-btn').onclick = () => {
+const resultStr = document.getElementById('autolink-result-input').value;
+try {
+const parsedCodes = JSON.parse(resultStr);
+if (Array.isArray(parsedCodes)) {
+syncActorSceneInputs();
+list[idx].linkedModules = parsedCodes;
+modal.classList.add('hidden');
+renderBookTabContent();
+alert(`成功載入 ${parsedCodes.length} 個推薦模組！`);
+} else { alert('格式錯誤：LLM 返回的不是陣列。'); }
+} catch (e) { alert('JSON 解析失敗，請確認 LLM 返回的是標準 JSON 格式 (例如 ["CODE1", "CODE2"])。'); }
+};
 }
 
 document.getElementById('auth-btn').addEventListener('click', () => {
@@ -1915,14 +2180,8 @@ if (!state.tokenClient) {
 alert('Google 登入服務尚未載入完成。\n請稍候片刻，或檢查網路連線/廣告封鎖外掛。\n若持續無法載入，請按 F12 查看控制台錯誤。');
 return;
 }
-if (gapi.client.getToken()) { 
-performPostLoginActions(); 
-return; 
-}
-
-try {
-state.tokenClient.requestAccessToken({ prompt: 'consent' });
-} catch (e) {
+if (gapi.client.getToken()) { performPostLoginActions(); return; }
+try { state.tokenClient.requestAccessToken({ prompt: 'consent' }); } catch (e) {
 console.error('requestAccessToken 錯誤:', e);
 alert('無法喚起 Google 登入視窗。\n請檢查瀏覽器是否封鎖了彈出式視窗 (Popup Blocker)。');
 }
@@ -1954,7 +2213,7 @@ state.navCollapsed = false;
 }
 document.getElementById('nav-collapse-btn').addEventListener('click', () => toggleNav(true));
 document.getElementById('nav-expand-btn').addEventListener('click', () => toggleNav(false));
-
+window.addEventListener('load', initGoogleApis);
 </script>
 </body>
 </html>
