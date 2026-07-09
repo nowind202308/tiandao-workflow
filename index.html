@@ -78,12 +78,12 @@ theme: { extend: { colors: {
 <body class="bg-background text-on-surface font-body-lg overflow-hidden h-screen flex flex-col">
 <div id="secure-mask" class="secure-mask">
 <span class="material-symbols-outlined text-4xl animate-pulse">terminal</span>
-<div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.6.04.2)</div>
+<div id="mask-status">SYSTEM_LOCKED :: WAITING_FOR_AUTH(V1.6.04.3)</div>
 </div>
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-surface border-b border-outline-variant">
 <div class="flex items-center gap-2">
 <span class="material-symbols-outlined text-primary-fixed-dim text-[20px]">terminal</span>
-<h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.6.04.2)</h1>
+<h1 class="font-label-caps text-[10px] tracking-wider text-primary-fixed-dim uppercase leading-none">Project Controller(V1.6.04.3)</h1>
 </div>
 <div class="flex items-center gap-3">
 <button class="bg-primary-container text-on-primary-fixed px-3 h-8 rounded-sm font-label-caps text-[10px] flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cyan-glow" id="auth-btn">
@@ -332,7 +332,7 @@ await DriveAPI.updateFile(state.booksFileId, jsonStr);
 const res = await DriveAPI.createFile(TDF_CONFIG.BOOKS_FILE, state.driveIds.root, jsonStr);
 state.booksFileId = res.id;
 }
-alert('書籍數據已同步至雲端！');
+console.log('✅ 書籍數據已同步至雲端！');
 }
 function getCurrentBook() {
 return state.books.find(b => b.id === state.currentBookId);
@@ -1100,7 +1100,7 @@ return `
 </button>
 </div>
 ${v.isEditing ? `
-<div class="version-editor" data-vidx="${vIdx}" data-section="${sectionKey}">
+<div class="version-editor" data-vid="${v.id}" data-vidx="${vIdx}" data-section="${sectionKey}">
 <label class="font-label-caps text-[10px] text-on-surface-variant">大綱 (Outline)</label>
 <textarea class="version-outline-input" rows="3" placeholder="版本大綱...">${v.outline || ''}</textarea>
 <label class="font-label-caps text-[10px] text-on-surface-variant">內文 (Content)</label>
@@ -1197,19 +1197,49 @@ book.chapters[cIdx].sections[sectionKey].versions[vIdx].note = e.target.value;
 };
 });
 
-// 【修復】修正 DOM 查找邏輯，使用 closest() 找到正確的 version-list
+// 【修復】使用 data-vid 來精確定位版本，而不是依賴索引
 container.querySelectorAll('.version-outline-input, .version-content-input').forEach(ta => {
 ta.oninput = (e) => {
 const editor = ta.closest('.version-editor');
-const vIdx = parseInt(editor.dataset.vidx);
+const vId = editor.dataset.vid;  // 使用版本ID而不是索引
 const sectionKey = editor.dataset.section;
-// 【關鍵修復】使用 closest('.version-list') 而不是 previousElementSibling
 const list = editor.closest('.version-list');
-const listCIdx = parseInt(list.dataset.cidx);
+const cIdx = parseInt(list.dataset.cidx);
+
+// 通過版本ID找到正確的版本對象
+const section = book.chapters[cIdx].sections[sectionKey];
+const version = section.versions.find(v => v.id === vId);
+
+if (version) {
 if (ta.classList.contains('version-outline-input')) {
-book.chapters[listCIdx].sections[sectionKey].versions[vIdx].outline = e.target.value;
+version.outline = e.target.value;
+console.log(`✅ 更新大綱 - 章節${cIdx+1}, ${sectionKey}, 版本${vId}: ${e.target.value.substring(0, 20)}...`);
 } else {
-book.chapters[listCIdx].sections[sectionKey].versions[vIdx].content = e.target.value;
+version.content = e.target.value;
+console.log(`✅ 更新內文 - 章節${cIdx+1}, ${sectionKey}, 版本${vId}: ${e.target.value.substring(0, 20)}...`);
+}
+} else {
+console.error('❌ 找不到版本:', vId);
+}
+};
+
+// 同時添加 blur 事件作為備份
+ta.onblur = (e) => {
+const editor = ta.closest('.version-editor');
+const vId = editor.dataset.vid;
+const sectionKey = editor.dataset.section;
+const list = editor.closest('.version-list');
+const cIdx = parseInt(list.dataset.cidx);
+const section = book.chapters[cIdx].sections[sectionKey];
+const version = section.versions.find(v => v.id === vId);
+
+if (version) {
+if (ta.classList.contains('version-outline-input')) {
+version.outline = e.target.value;
+} else {
+version.content = e.target.value;
+}
+saveBooksData(); // 自動保存到雲端
 }
 };
 });
@@ -1329,8 +1359,8 @@ percentage = Math.max(20, Math.min(100, percentage));
 let statusClass = 'medium';
 let emoji = '';
 let statusText = '平衡';
-if (percentage >= 70) { statusClass = 'high'; emoji = '🟢'; statusText = '高度自由'; }
-else if (percentage <= 40) { statusClass = 'low'; emoji = '🔴'; statusText = '嚴格約束'; }
+if (percentage >= 70) { statusClass = 'high'; emoji = ''; statusText = '高度自由'; }
+else if (percentage <= 40) { statusClass = 'low'; emoji = ''; statusText = '嚴格約束'; }
 return `<span class="creative-space-margin ${statusClass}" title="創作空間裕度：${statusText}\n模組數：${moduleCount}\n約束數：${strictConstraints}"><span class="emoji">${emoji}</span> ${percentage}%</span>`;
 }
 function renderOutlineView(container) {
@@ -1538,7 +1568,7 @@ ${Object.keys(prompts).map(key => `<button class="trigger-btn bg-surface-contain
 <h2 class="font-label-caps text-sm text-primary-fixed-dim border-l-2 border-primary-container pl-2 mt-6">大綱預覽與導出</h2>
 <div class="glass-panel p-3 rounded-sm"><pre id="outline-preview" class="font-data-md text-[10px] text-on-surface-variant whitespace-pre-wrap max-h-[300px] overflow-y-auto"></pre></div>
 <div class="grid grid-cols-2 gap-2">
-<button id="refresh-preview" class="bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant">🔄 更新預覽</button>
+<button id="refresh-preview" class="bg-surface-container-high text-on-surface py-2 rounded-sm font-label-caps text-xs border border-outline-variant"> 更新預覽</button>
 <button id="copy-outline" class="bg-primary-container text-on-primary-fixed py-2 rounded-sm font-label-caps text-xs flex items-center justify-center gap-1 cyan-glow"><span class="material-symbols-outlined text-[16px]">content_copy</span> 複製全部大綱</button>
 </div>
 </div>
